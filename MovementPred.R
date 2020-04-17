@@ -6,8 +6,290 @@ if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.
 if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
 if(!require(scales)) install.packages("scales", repos = "http://cran.us.r-project.org")
 if(!require(scales)) install.packages("tinytex", repos = "http://cran.us.r-project.org")
+if(!require(abind)) install.packages("abind", repos = "http://cran.us.r-project.org")
+if(!require(matrixStats)) install.packages("matrixStats", repos = "http://cran.us.r-project.org")
+if(!require(e1071)) install.packages("e1071", repos = "http://cran.us.r-project.org")
 
-########################### Make data ready to use ############################
+###################### Defining Functions for later use ########################################
+# Usually I would use an extra script for functions but I understood our deliverable in a way
+# that we only shall provide one script which has all code in it
+################################################################################################
+
+Features <- function(f){
+  # Maximum/Minimum, mean, variance, skewness, kurtosis per column
+  f_min <- apply(f,2,min)
+  f_max <- apply(f,2,max)
+  f_mean <- colMeans(f)
+  f_var <- colVars(f)
+  f_skew <- apply(f,2,skewness)
+  f_kurt <- apply(f,2,kurtosis)
+  
+  #----------Discrete Fourier Transformation (with fast fourier transform)---------
+  #Do Fast Fourier transformation (fft)
+  f_DFT_temp <- apply(f,2,fft)
+  
+  #Get the peaks and the phases
+  f_DFT_Mod_temp <- apply(f_DFT_temp,2,Mod)
+  f_DFT_Arg_temp <- apply(f_DFT_temp,2,Arg)
+  
+  #Choose just half of the values (seconde half is like a mirror of the first)
+  f_DFT_Mod_temp_Half <- f_DFT_Mod_temp[1:(length(f_DFT_Mod_temp[,1])/2+1),]
+  f_DFT_Arg_temp_Half <- f_DFT_Arg_temp[1:(length(f_DFT_Arg_temp[,1])/2+1),]
+  
+  #Select the top 5 Peaks
+  f_DFT_Mod <- apply(f_DFT_Mod_temp_Half,2,function(x){
+    head(sort(x,decreasing = TRUE),5)
+  })
+  
+  #Finde the corresponding phase/frequency value to the defined peaks - step 1: Get the index / step 2: get the values
+  for(i in 1:45) {
+    
+    if(exists("Index_vec")==FALSE){ 
+      Index_vec <- match(f_DFT_Mod[,i],f_DFT_Mod_temp_Half[,i])} 
+    else{
+      Index_vec <- c(Index_vec,match(f_DFT_Mod[,i],f_DFT_Mod_temp_Half[,i]))}
+  }
+  
+  Index_matrix <- matrix(Index_vec, 5, 45)
+  
+  for(i in 1:45){
+    if(exists("f_DFT_Arg")==FALSE){ 
+      f_DFT_Arg <- f_DFT_Arg_temp_Half[Index_matrix[,i],i]}
+    else{
+      f_DFT_Arg <- c(f_DFT_Arg,f_DFT_Arg_temp_Half[Index_matrix[,i],i])}
+  }
+  
+  #-------------------------------------- Autocorrelation -------------------
+  #Get the Autocorrrelation for lag 50 (corresponds to 2 sek)
+  f_Autoc_temp <- apply(f,2,function(x){
+    acf(x, lag.max = 50, plot=FALSE)
+  })
+  
+  #Get 11 values out of the 50 per "column" (here more "list section") - 
+  #First value always =1 so not a lot of info from this, then I chose 4 correlation values
+  #of the beginning, 4 values around 1 sek distance and 3 values at the end (=around 2sek difference)
+  for(i in 1:45){
+    if(exists("f_Autoc")==FALSE){
+      f_Autoc <- f_Autoc_temp[[i]]$acf[c(2:5,23:26,48:50)]}
+    else{
+      f_Autoc <- c(f_Autoc,f_Autoc_temp[[i]]$acf[c(2:5,23:26,48:50)])}
+  }
+  #---------------------Building the Feature Vector ----------------------------------------------------------------------
+  Feature_Vector <<- c(f_min,f_max,f_mean,f_var,f_skew,f_kurt,as.vector(f_DFT_Mod),f_DFT_Arg, f_Autoc) #global Variable "<<-"
+}
+
+########################## Create Feature-Set (Matrix and tibble) out of raw data #######################################################
+
+ColNames <- c("T_xacc", "T_yacc", "T_zacc", "T_xgyro", "T_ygyro", "T_zgyro", "T_xmag", "T_ymag", "T_zmag",
+              "RA_xacc", "RA_yacc", "RA_zacc", "RA_xgyro", "RA_ygyro", "RA_zgyro", "RA_xmag", "RA_ymag", "RA_zmag",
+              "LA_xacc", "LA_yacc", "LA_zacc", "LA_xgyro", "LA_ygyro", "LA_zgyro", "LA_xmag", "LA_ymag", "LA_zmag",
+              "RL_xacc", "RL_yacc", "RL_zacc", "RL_xgyro", "RL_ygyro", "RL_zgyro", "RL_xmag", "RL_ymag", "RL_zmag",
+              "LL_xacc", "LL_yacc", "LL_zacc", "LL_xgyro", "LL_ygyro", "LL_zgyro", "LL_xmag", "LL_ymag", "LL_zmag")
+activityNames <- c("a01","a02", "a03", "a04", "a05", "a06", "a07", "a08", "a09", "a10", "a11", "a12", "a13", "a14", "a15", 
+                   "a16", "a17", "a18", "a19")
+personNumber <- c("p1","p2","p3","p4","p5","p6","p7","p8")
+fileNames <- sprintf("%02d",seq(1:60)) # gives me all numbers als 2 digits so that 1, 2 is "01", "02" etc
+
+#Loop for the activites
+for(z in activityNames){
+  
+  #Loop for the person
+  for(y in personNumber){
+    
+    #Loop for the 60 time-series files
+    for(x in fileNames){
+      file <- paste0("C:/Users/fure/OneDrive/Projects/R/TempRohDaten/data/",z,paste0("/",y,paste0("/s",x,".txt")))
+      f <- as.matrix(read_delim(file, delim = ",", col_names = ColNames))
+      if(exists("Feature_Vector")==FALSE){
+        Features(f)}
+      else{
+        Feature_Vector <- c(Feature_Vector, Features(f))}
+    }
+  }
+}
+
+#Prepare for the Naming of the columns and rows:
+temp <- rep(ColNames,each=5)
+temp1 <- c(rep(c("DFT_Mod_1_","DFT_Mod_2_","DFT_Mod_3_","DFT_Mod_4_","DFT_Mod_5_"),45))
+temp_Mod <- paste0(temp1,temp)
+
+temp1 <- c(rep(c("DFT_Arg_1_","DFT_Arg_2_","DFT_Arg_3_","DFT_Arg_4_","DFT_Arg_5_"),45))
+temp_Arg <- paste0(temp1,temp)
+
+temp <- rep(ColNames,each=11)
+temp1 <- c(rep(c("DFT_Atuoc_1_","DFT_Atuoc_2_","DFT_Atuoc_3_","DFT_Atuoc_4_","DFT_Atuoc_5_","DFT_Atuoc_6_",
+                 "DFT_Atuoc_7_","DFT_Atuoc_8_","DFT_Atuoc_9_","DFT_Atuoc_10_","DFT_Atuoc_11_"),45))
+temp_Autoc <- paste0(temp1,temp)
+
+
+DimNames_Col <- c(paste0("min_",ColNames),paste0("max_",ColNames),paste0("mean_",ColNames),paste0("var_",ColNames),
+                  paste0("skew_",ColNames), paste0("kurt_",ColNames),temp_Mod,temp_Arg,temp_Autoc)
+
+
+DimNames_Row <- c(rep("a01", (60*8)),rep("a02", (60*8)),rep("a03", (60*8)),rep("a04", (60*8)),rep("a05", (60*8)),
+                  rep("a06", (60*8)),rep("a07", (60*8)),rep("a08", (60*8)),rep("a09", (60*8)),rep("a10", (60*8)),
+                  rep("a11", (60*8)),rep("a12", (60*8)),rep("a13", (60*8)),rep("a14", (60*8)),rep("a15", (60*8)),
+                  rep("a16", (60*8)),rep("a17", (60*8)),rep("a18", (60*8)),rep("a19", (60*8)))
+
+#Generate a Matrix out of the Feature_Vector:
+Feature_Matrix <- matrix(Feature_Vector,9120,1215,byrow = TRUE, dimnames = list(DimNames_Row, DimNames_Col))
+
+#Generate a Tibble including the activity column:
+Feature_Tibble <- Feature_Matrix %>% as_tibble() %>% cbind(DimNames_Row,.) %>% rename(Activity = DimNames_Row)
+
+#remove unnessecary objects
+rm(x,y,z,activityNames,personNumber,fileNames,f, file,temp, temp1, temp_Arg, temp_Mod, temp_Autoc)#,Feature_Vector)
+
+###################### Generate Train and Test Data ################################################################
+#Split Feature dataset in a Feature_train and Feature_test set - use 15% of data for test set
+set.seed(2020, sample.kind="Rounding") #so that I have reproducable results
+
+test_index <- createDataPartition(y = rownames(Feature_Matrix), times = 1, p = 0.15, list = FALSE)
+Feature_train <- Feature_Matrix[-test_index,]
+Feature_test <- Feature_Matrix[test_index,]
+
+train_labels <- rownames(Feature_train)
+test_labels <- rownames(Feature_test)
+
+#remove unnessecary object
+rm(test_index)
+
+######################## Analyse Data from Feature Set #############################################################
+#------------------Compare the values of the different columns to see if they have similar scale:----------
+#First Index are the first Columns of each Feature-Typ (min, max, variance....kurtosis), for DFT_Mod/DFT_Arg
+#the first value of each sensor and for Autocorrelation every 45th value:
+for(i in 1:27){
+  ifelse(exists("index")=="FALSE",index <- c(1),index <- c(index,1+45*i))
+}
+index <- replace(index,27,1215)
+index
+
+#Move by one column higher compared to index for the DFT_Mod values
+index1 <- replace(index,c(6:10),c(272,317,362,407,452))
+index1
+
+#Move by two columns higher compared to index for the DFT_Mod values
+index2 <- replace(index,c(6:10),c(273,318,363,408,453))
+index2
+
+#Bring all indexes in a matrix:
+indexM <- matrix(c(index,index1,index2),27,3)
+indexM
+
+#Generate three pictures to show how values differe to each other:
+apply(indexM,2,function(x){
+  image(as.matrix(Feature_Matrix[,x]), col = rev(RColorBrewer::brewer.pal(9, "RdBu")))
+})
+
+########################## Feature Reduction #######################################################################
+
+#Geprüft, ob dank "nearZero" gewisse Features verworfen werden können? [sind nur 2...]
+nzv <- nearZeroVar(Feature_Matrix)
+
+#pca Analyse - erneut wichtiger Link: https://strata.uga.edu/software/pdf/pcaTutorial.pdf
+#Zentriert wird es per Default, aber ich habe nun auch noch scale. auf TRUE gesetzt, so dass die Skalen vergleichbar
+#werden zwischen den Featuren:
+pca <- prcomp(Feature_train, scale. = FALSE)
+
+#!!!!!! Hier PCA Variablen definieren: gemäss Seite 4 von Tutorial !!!!!#
+variance <- (pca$sdev)^2
+loadings <- pca$rotation 
+rownames(loadings) <- colnames(Feature_Matrix)  
+scores <- pca$x
+
+#d <- dist(Feature_Matrix)
+#image(as.matrix(d), col = rev(RColorBrewer::brewer.pal(9, "RdBu")))
+
+#Damit kann gezeigt werden wie hoch die prozentuale Erklärung eines jeden PC ist
+varPercent <- variance/sum(variance) * 100
+barplot(varPercent, xlab='PC', ylab='Percent Variance', names.arg=1:length(varPercent), las=1, col='gray')
+abline(h=1/ncol(Feature_Matrix)*100, col='red')
+
+#Find # of PC which explains more dann 99% of Variance
+PC_99 <- match("TRUE",cumsum(variance/sum(variance))>=0.99)-1
+PC_99
+
+#Man sagt (siehe Link oben), dass alle PC mitreingenommen werden sollen, welche einen grösseren Beitrag an die
+#Varianz leisten als wenn jedes Feature genau gleich viel beitragen würde (=1/(Anzahl Feature))
+#Dies ist bei uns gegeben bei
+match(TRUE,varPercent<(1/ncol(Feature_Matrix)*100))
+
+round(loadings, 3)[1:10, 1:189]
+apply(round(loadings,3)[,1:10],2,max)
+match(max(loadings[,8]),loadings[,8])
+round(loadings,3)[c(1,135),8]
+
+#Generate a Tibble including the activity column:
+Feature_Tibble <- Feature_Matrix %>% as_tibble() %>% cbind(DimNames_Row,.) %>% rename(Activity = DimNames_Row)
+
+
+
+################################# Train Models ####################################################################################
+################################# 
+
+pca_train <- scores[,1:PC_99]
+#y <- factor(train_labels)
+#fit <- knn3(x_train,y, k=5)
+pca_train <- pca_train %>% as_tibble() %>% cbind(train_labels,.) %>% rename(Activity = train_labels)
+pca_train$Activity <- factor(pca_train$Activity)
+
+#Now transform the test set:
+
+pca_test <- sweep(Feature_test, 2, colMeans(Feature_test)) %*% pca$rotation
+pca_test <- pca_test[,1:PC_99]
+pca_test <- pca_test %>% as_tibble() %>% cbind(test_labels,.) %>% rename(Activity = test_labels)
+pca_test$Activity <- factor(pca_test$Activity)
+
+#And we are ready to predict and see how we do:
+#
+fitControl <- trainControl(## 10-fold CV
+  method = "repeatedcv",
+  number = 10,
+  ## repeated ten times
+  repeats = 10)
+
+Fit1 <- train(Activity ~ ., data = pca_train, 
+              method = "knn", 
+              trControl = fitControl)#,
+## This last option is actually one
+## for gbm() that passes through
+#verbose = FALSE)
+Fit1
+
+rows <- sample(nrow(pca_test))
+pca_test1 <- pca_test[rows,]
+
+y_hat <- predict(Fit1, pca_test)
+q <- confusionMatrix(y_hat, pca_test$Activity)
+confusionMatrix(y_hat, pca_test$Activity)$overall["Accuracy"]
+#-----------------------------------------------------------------------------------
+
+
+y_hat_knn <- predict(knn_fit, mnist_27$test, type = "class")
+confusionMatrix(data = y_hat_knn, reference = mnist_27$test$y)$overall["Accuracy"]
+
+
+library(caret)
+k <- 36
+x_train <- pca$x[,1:k]
+y <- factor(mnist$train$labels)
+fit <- knn3(x_train, y)
+
+x_test <- sweep(mnist$test$images, 2, col_means) %*% pca$rotation
+x_test <- x_test[,1:k]
+
+y_hat <- predict(fit, x_test, type = "class")
+confusionMatrix(y_hat, factor(mnist$test$labels))$overall["Accuracy"]
+#> Accuracy 
+#>    0.975
+
+
+
+
+
+
+########################### Make data ready to use  - Kann man löschen - davor noch schauen wegen zip-Datei...############################
+########################### 
 
 #----------------------------- Establish the basic tables out ot the raw data ---
 
@@ -34,6 +316,7 @@ ColNames <- c("T_xacc", "T_yacc", "T_zacc", "T_xgyro", "T_ygyro", "T_zgyro", "T_
 #Download the zip File with the raw data
 dl <- tempfile()
 download.file("https://publicdatarfu.blob.core.windows.net/publicdatarfucontainer/data.zip", dl)
+#!!!!!! Prüfen, ob es auch tempfolder gibt, damit man alles unzipen kann...
 
 #Generate the basic table for activity nb 1 just with one file:
 temp <- unzip(dl, "data/a01/p1/s01.txt")
