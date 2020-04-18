@@ -10,6 +10,11 @@ if(!require(abind)) install.packages("abind", repos = "http://cran.us.r-project.
 if(!require(matrixStats)) install.packages("matrixStats", repos = "http://cran.us.r-project.org")
 if(!require(e1071)) install.packages("e1071", repos = "http://cran.us.r-project.org")
 
+#Libraries needed for model calculations:
+if(!require(nnet)) install.packages("nnet", repos = "http://cran.us.r-project.org") #Penalized Multinomial Regression
+if(!require(klaR)) install.packages("klaR", repos = "http://cran.us.r-project.org") #naives Bayes
+if(!require(xgboost)) install.packages("xgboost", repos = "http://cran.us.r-project.org") #Gradient Boosting
+
 ###################### Defining Functions for later use ########################################
 # Usually I would use an extra script for functions but I understood our deliverable in a way
 # that we only shall provide one script which has all code in it
@@ -135,14 +140,14 @@ DimNames_Row <- c(rep("a01", (60*8)),rep("a02", (60*8)),rep("a03", (60*8)),rep("
 Feature_Matrix <- matrix(Feature_Vector,9120,1215,byrow = TRUE, dimnames = list(DimNames_Row, DimNames_Col))
 
 #Generate a Tibble including the activity column:
-Feature_Tibble <- Feature_Matrix %>% as_tibble() %>% cbind(DimNames_Row,.) %>% rename(Activity = DimNames_Row)
+#Feature_Tibble <- Feature_Matrix %>% as_tibble() %>% cbind(DimNames_Row,.) %>% rename(Activity = DimNames_Row)
 
 #remove unnessecary objects
-rm(x,y,z,activityNames,personNumber,fileNames,f, file,temp, temp1, temp_Arg, temp_Mod, temp_Autoc)#,Feature_Vector)
+rm(x,y,z,activityNames,personNumber,fileNames,f, file,temp, temp1, temp_Arg, temp_Mod, temp_Autoc,Feature_Vector)
 
 ###################### Generate Train and Test Data ################################################################
 #Split Feature dataset in a Feature_train and Feature_test set - use 15% of data for test set
-set.seed(2020, sample.kind="Rounding") #so that I have reproducable results
+set.seed(2020) #so that I have reproducable results
 
 test_index <- createDataPartition(y = rownames(Feature_Matrix), times = 1, p = 0.15, list = FALSE)
 Feature_train <- Feature_Matrix[-test_index,]
@@ -158,33 +163,35 @@ rm(test_index)
 #------------------Compare the values of the different columns to see if they have similar scale:----------
 #First Index are the first Columns of each Feature-Typ (min, max, variance....kurtosis), for DFT_Mod/DFT_Arg
 #the first value of each sensor and for Autocorrelation every 45th value:
-for(i in 1:27){
-  ifelse(exists("index")=="FALSE",index <- c(1),index <- c(index,1+45*i))
-}
-index <- replace(index,27,1215)
-index
+
+
+#for(i in 1:27){
+#  ifelse(exists("index")=="FALSE",index <- c(1),index <- c(index,1+45*i))
+#}
+#index <- replace(index,27,1215)
+#index
 
 #Move by one column higher compared to index for the DFT_Mod values
-index1 <- replace(index,c(6:10),c(272,317,362,407,452))
-index1
+#index1 <- replace(index,c(6:10),c(272,317,362,407,452))
+#index1
 
 #Move by two columns higher compared to index for the DFT_Mod values
-index2 <- replace(index,c(6:10),c(273,318,363,408,453))
-index2
+#index2 <- replace(index,c(6:10),c(273,318,363,408,453))
+#index2
 
 #Bring all indexes in a matrix:
-indexM <- matrix(c(index,index1,index2),27,3)
-indexM
+#indexM <- matrix(c(index,index1,index2),27,3)
+#indexM
 
 #Generate three pictures to show how values differe to each other:
-apply(indexM,2,function(x){
-  image(as.matrix(Feature_Matrix[,x]), col = rev(RColorBrewer::brewer.pal(9, "RdBu")))
-})
+#apply(indexM,2,function(x){
+#  image(as.matrix(Feature_Matrix[,x]), col = rev(RColorBrewer::brewer.pal(9, "RdBu")))
+#})
 
 ########################## Feature Reduction #######################################################################
 
 #Geprüft, ob dank "nearZero" gewisse Features verworfen werden können? [sind nur 2...]
-nzv <- nearZeroVar(Feature_Matrix)
+#nzv <- nearZeroVar(Feature_Matrix)
 
 #pca Analyse - erneut wichtiger Link: https://strata.uga.edu/software/pdf/pcaTutorial.pdf
 #Zentriert wird es per Default, aber ich habe nun auch noch scale. auf TRUE gesetzt, so dass die Skalen vergleichbar
@@ -197,33 +204,23 @@ rotation <- pca$rotation
 rownames(rotation) <- colnames(Feature_Matrix)  
 scores <- pca$x
 
+#Cool Image but needs lot of time...
 #d <- dist(Feature_Matrix)
 #image(as.matrix(d), col = rev(RColorBrewer::brewer.pal(9, "RdBu")))
 
-#Damit kann gezeigt werden wie hoch die prozentuale Erklärung eines jeden PC ist
+#Shows % of Variance explained by PC
 varPercent <- variance/sum(variance) * 100
 barplot(varPercent, xlab='PC', ylab='Percent Variance', names.arg=1:length(varPercent), las=1, col='gray')
 abline(h=1/ncol(Feature_Matrix)*100, col='red')
 
-#Find # of PC which explains more dann 99% of Variance
+#Find # of PC which explain more dann 99% of Variance
 PC_99 <- match("TRUE",cumsum(variance/sum(variance))>=0.99)-1
 PC_99
 
-#Man sagt (siehe Link oben), dass alle PC mitreingenommen werden sollen, welche einen grösseren Beitrag an die
-#Varianz leisten als wenn jedes Feature genau gleich viel beitragen würde (=1/(Anzahl Feature))
-#Dies ist bei uns gegeben bei
-match(TRUE,varPercent<(1/ncol(Feature_Matrix)*100))
-
-round(rotation, 3)[1:10, 1:189]
-apply(round(rotation,3)[,1:10],2,max)
-match(max(rotation[,8]),rotation[,8])
-round(rotation,3)[c(1,135),8]
-
-
 ################################# Train Models ####################################################################################
-################################# 
+####################################################################################################################################
 
-#-----------------Preparation: Bring pca_train/pca_test set into tibbles and define a "fitControl"-------------------
+#-----------------Preparation: Bring pca_train/pca_test set into tibbles and define a "fitControl"-------
 #pca_train into tibbles incl. Acitivites as factor
 pca_train <- scores[,1:PC_99]
 pca_train <- pca_train %>% as_tibble() %>% cbind(train_labels,.) %>% rename(Activity = train_labels)
@@ -235,27 +232,29 @@ pca_test <- pca_test[,1:PC_99]
 pca_test <- pca_test %>% as_tibble() %>% cbind(test_labels,.) %>% rename(Activity = test_labels)
 pca_test$Activity <- factor(pca_test$Activity)
 
-#k-Fold CrossValidation with 10 repetitions:
-rp = 1
+#k-Fold CrossValidation with 5 folds and 2 repetitions:
 fitControl <- trainControl(
   method = "repeatedcv",
-  number = 10,
-  repeats = rp,
+  number = 5,
+  repeats = 2,
   verboseIter = TRUE)
 
-#-----------------------multinom - package "nnet"-------------------------------------------
-fitControl$repeats <- (rp=1)
+#----------------------- Penalized Multinomial Regression -------------------------------------------
+set.seed(2020)
+
 Fit_multi <- train(Activity ~ ., data = pca_train, 
                  method = "multinom", 
-                 trControl = fitControl)
+                 trControl = fitControl,
+                 tuneGrid = data.frame(decay = c(0,0.0001)))
 Fit_multi
 
 predictions <- predict(Fit_multi, pca_test)
 CM_multi <- confusionMatrix(predictions, pca_test$Activity)
 confusionMatrix(predictions, pca_test$Activity)$overall["Accuracy"]
 
-#-----------------------knn - Ok-------------------------------------------
-fitControl$repeats <- (rp=10)
+#-----------------------k-Nearest Neighbors--------------------------------------------------
+set.seed(2020)
+
 Fit_knn <- train(Activity ~ ., data = pca_train, 
               method = "knn", 
               trControl = fitControl,
@@ -266,57 +265,90 @@ predictions <- predict(Fit_knn, pca_test)
 CM_knn <- confusionMatrix(predictions, pca_test$Activity)
 confusionMatrix(predictions, pca_test$Activity)$overall["Accuracy"]
 
-#-----------------------naive Bayes - ok (parameter missing)- package "klaR"-------------------------------------------
-fitControl$repeats <- (rp=1)
+#-----------------------naive Bayes -- lots of warnings because auf small values ----------------
+set.seed(2020)
 
 Fit_nBayes <- train(Activity ~ ., data = pca_train, 
                  method = "nb", 
-                 trControl = fitControl)#,
-                 #tuneGrid = data.frame(k = c(5,7,9,11,15,20)))
+                 trControl = fitControl,
+                 tuneGrid = data.frame(fL = 0, usekernel = TRUE, adjust = 1))
 Fit_nBayes
 
 predictions <- predict(Fit_nBayes, pca_test)
 CM_nBayes <- confusionMatrix(predictions, pca_test$Activity)
 confusionMatrix(predictions, pca_test$Activity)$overall["Accuracy"]
 
-#-----------------------SVM - ok (parameters missing)----------------------------------------------------
-fitControl$repeats <- (rp=10)
+#-----------------------Support Vector Machines----------------------------------------------------
+set.seed(2020)
 
 Fit_svm <- train(Activity ~ ., data = pca_train, 
                  method = "svmLinear2",
-                 trControl = fitControl)#,
-#tuneGrid = data.frame(k = c(5,7,9,11,15,20)))
+                 trControl = fitControl,
+                tuneGrid = data.frame(cost = c(0.5,1)))
 Fit_svm
 
 predictions <- predict(Fit_svm, pca_test)
 CM_svm <- confusionMatrix(predictions, pca_test$Activity)
 confusionMatrix(predictions, pca_test$Activity)$overall["Accuracy"]
 
-#-----------------------Gradient Boost linear - ok (parameter missing) - package "xgboost"----------------------------------------------------
-fitControl$repeats <- (rp=1)
+#-----------------------Gradient Boosting linear ----------------------------------------------------
+set.seed(2020)
 
 Fit_gb <- train(Activity ~ ., data = pca_train, 
                     method = "xgbLinear",
-                    trControl = fitControl)#,
-#tuneGrid = data.frame(k = c(5,7,9,11,15,20)))
+                    trControl = fitControl,
+                    tuneGrid = data.frame(nrounds= 150, lambda=c(0,0.1), 
+                                          gamma=0, eta=c(0.3,0.4)))
 Fit_gb
 
 predictions <- predict(Fit_gb, pca_test)
 CM_gb <- confusionMatrix(predictions, pca_test$Activity)
 confusionMatrix(predictions, pca_test$Activity)$overall["Accuracy"]
 
-#-----------------------Gradient Boost Tree - nok (parameter missing) - package "xgboost"----------------------------------------------------
-fitControl$repeats <- (rp=1)
+#-----------------------Gradient Boosting Tree ----------------------------------------------------
+set.seed(2020)
+
+len=3
+gbtGrid <-  expand.grid(max_depth = seq(2, len),
+                         nrounds = floor((2:len) * 50),
+                         eta = .3,
+                         gamma = 0,
+                         colsample_bytree = c(.6, .8),
+                         min_child_weight = c(1),
+                         subsample = seq(.5, .75, length = len-1))
 
 Fit_gbt <- train(Activity ~ ., data = pca_train, 
                 method = "xgbTree",
-                trControl = fitControl)#,
-#tuneGrid = data.frame(k = c(5,7,9,11,15,20)))
+                trControl = fitControl,
+                tuneGrid = gbtGrid)#data.frame(nrounds= c(100,150),colsample_bytree=c(0.6,0.8), 
+                                      #gamma=0, eta=0.3, min_child_weight=1, subsample=c(0.5,0.75),
+                                      #max_depth=c(2,3)))
 Fit_gbt
 
 predictions <- predict(Fit_gbt, pca_test)
 CM_gbt <- confusionMatrix(predictions, pca_test$Activity)
 confusionMatrix(predictions, pca_test$Activity)$overall["Accuracy"]
+
+#----------------------Compare all Accuracies----------------------------------
+results <- tibble(method= c("Penalized Multinomial Regression", "k-Nearest Neighbors", "Naive Bayes",
+                           "Support Vector Machines", "eXtreme Gradient Boosting (linear)", 
+                           "eXtreme Gradient Boosting (Tree)"),
+                                 Accuracy = c(CM_multi$overall["Accuracy"], CM_knn$overall["Accuracy"],
+                                              CM_nBayes$overall["Accuracy"], CM_svm$overall["Accuracy"],
+                                              CM_gb$overall["Accuracy"], CM_gbt$overall["Accuracy"]))
+
+results <- results[order(results$Accuracy, decreasing = TRUE),]
+
+results %>% knitr::kable()
+
+
+##############################################################################################
+##############################################################################################
+###################################### END, END, END #########################################
+##############################################################################################
+##############################################################################################
+
+
 
 #------------------------------------------------------------------------------
 
