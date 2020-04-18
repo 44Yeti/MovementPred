@@ -193,8 +193,8 @@ pca <- prcomp(Feature_train, scale. = FALSE)
 
 #!!!!!! Hier PCA Variablen definieren: gemäss Seite 4 von Tutorial !!!!!#
 variance <- (pca$sdev)^2
-loadings <- pca$rotation 
-rownames(loadings) <- colnames(Feature_Matrix)  
+rotation <- pca$rotation 
+rownames(rotation) <- colnames(Feature_Matrix)  
 scores <- pca$x
 
 #d <- dist(Feature_Matrix)
@@ -214,55 +214,111 @@ PC_99
 #Dies ist bei uns gegeben bei
 match(TRUE,varPercent<(1/ncol(Feature_Matrix)*100))
 
-round(loadings, 3)[1:10, 1:189]
-apply(round(loadings,3)[,1:10],2,max)
-match(max(loadings[,8]),loadings[,8])
-round(loadings,3)[c(1,135),8]
-
-#Generate a Tibble including the activity column:
-Feature_Tibble <- Feature_Matrix %>% as_tibble() %>% cbind(DimNames_Row,.) %>% rename(Activity = DimNames_Row)
-
+round(rotation, 3)[1:10, 1:189]
+apply(round(rotation,3)[,1:10],2,max)
+match(max(rotation[,8]),rotation[,8])
+round(rotation,3)[c(1,135),8]
 
 
 ################################# Train Models ####################################################################################
 ################################# 
 
+#-----------------Preparation: Bring pca_train/pca_test set into tibbles and define a "fitControl"-------------------
+#pca_train into tibbles incl. Acitivites as factor
 pca_train <- scores[,1:PC_99]
-#y <- factor(train_labels)
-#fit <- knn3(x_train,y, k=5)
 pca_train <- pca_train %>% as_tibble() %>% cbind(train_labels,.) %>% rename(Activity = train_labels)
 pca_train$Activity <- factor(pca_train$Activity)
 
-#Now transform the test set:
-
-pca_test <- sweep(Feature_test, 2, colMeans(Feature_test)) %*% pca$rotation
+#Transform test set 
+pca_test <- sweep(Feature_test, 2, colMeans(Feature_test)) %*% rotation
 pca_test <- pca_test[,1:PC_99]
 pca_test <- pca_test %>% as_tibble() %>% cbind(test_labels,.) %>% rename(Activity = test_labels)
 pca_test$Activity <- factor(pca_test$Activity)
 
-#And we are ready to predict and see how we do:
-#
-fitControl <- trainControl(## 10-fold CV
+#k-Fold CrossValidation with 10 repetitions:
+rp = 1
+fitControl <- trainControl(
   method = "repeatedcv",
   number = 10,
-  ## repeated ten times
-  repeats = 10)
+  repeats = rp,
+  verboseIter = TRUE)
 
-Fit1 <- train(Activity ~ ., data = pca_train, 
+#-----------------------multinom - package "nnet"-------------------------------------------
+fitControl$repeats <- (rp=1)
+Fit_multi <- train(Activity ~ ., data = pca_train, 
+                 method = "multinom", 
+                 trControl = fitControl)
+Fit_multi
+
+predictions <- predict(Fit_multi, pca_test)
+CM_multi <- confusionMatrix(predictions, pca_test$Activity)
+confusionMatrix(predictions, pca_test$Activity)$overall["Accuracy"]
+
+#-----------------------knn - Ok-------------------------------------------
+fitControl$repeats <- (rp=10)
+Fit_knn <- train(Activity ~ ., data = pca_train, 
               method = "knn", 
-              trControl = fitControl)#,
-## This last option is actually one
-## for gbm() that passes through
-#verbose = FALSE)
-Fit1
+              trControl = fitControl,
+              tuneGrid = data.frame(k = c(5,7,9,11,15,20)))
+Fit_knn
 
-rows <- sample(nrow(pca_test))
-pca_test1 <- pca_test[rows,]
+predictions <- predict(Fit_knn, pca_test)
+CM_knn <- confusionMatrix(predictions, pca_test$Activity)
+confusionMatrix(predictions, pca_test$Activity)$overall["Accuracy"]
 
-y_hat <- predict(Fit1, pca_test)
-q <- confusionMatrix(y_hat, pca_test$Activity)
-confusionMatrix(y_hat, pca_test$Activity)$overall["Accuracy"]
-#-----------------------------------------------------------------------------------
+#-----------------------naive Bayes - ok (parameter missing)- package "klaR"-------------------------------------------
+fitControl$repeats <- (rp=1)
+
+Fit_nBayes <- train(Activity ~ ., data = pca_train, 
+                 method = "nb", 
+                 trControl = fitControl)#,
+                 #tuneGrid = data.frame(k = c(5,7,9,11,15,20)))
+Fit_nBayes
+
+predictions <- predict(Fit_nBayes, pca_test)
+CM_nBayes <- confusionMatrix(predictions, pca_test$Activity)
+confusionMatrix(predictions, pca_test$Activity)$overall["Accuracy"]
+
+#-----------------------SVM - ok (parameters missing)----------------------------------------------------
+fitControl$repeats <- (rp=10)
+
+Fit_svm <- train(Activity ~ ., data = pca_train, 
+                 method = "svmLinear2",
+                 trControl = fitControl)#,
+#tuneGrid = data.frame(k = c(5,7,9,11,15,20)))
+Fit_svm
+
+predictions <- predict(Fit_svm, pca_test)
+CM_svm <- confusionMatrix(predictions, pca_test$Activity)
+confusionMatrix(predictions, pca_test$Activity)$overall["Accuracy"]
+
+#-----------------------Gradient Boost linear - ok (parameter missing) - package "xgboost"----------------------------------------------------
+fitControl$repeats <- (rp=1)
+
+Fit_gb <- train(Activity ~ ., data = pca_train, 
+                    method = "xgbLinear",
+                    trControl = fitControl)#,
+#tuneGrid = data.frame(k = c(5,7,9,11,15,20)))
+Fit_gb
+
+predictions <- predict(Fit_gb, pca_test)
+CM_gb <- confusionMatrix(predictions, pca_test$Activity)
+confusionMatrix(predictions, pca_test$Activity)$overall["Accuracy"]
+
+#-----------------------Gradient Boost Tree - nok (parameter missing) - package "xgboost"----------------------------------------------------
+fitControl$repeats <- (rp=1)
+
+Fit_gbt <- train(Activity ~ ., data = pca_train, 
+                method = "xgbTree",
+                trControl = fitControl)#,
+#tuneGrid = data.frame(k = c(5,7,9,11,15,20)))
+Fit_gbt
+
+predictions <- predict(Fit_gbt, pca_test)
+CM_gbt <- confusionMatrix(predictions, pca_test$Activity)
+confusionMatrix(predictions, pca_test$Activity)$overall["Accuracy"]
+
+#------------------------------------------------------------------------------
 
 
 y_hat_knn <- predict(knn_fit, mnist_27$test, type = "class")
