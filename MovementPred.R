@@ -99,7 +99,7 @@ activityNames <- c("a01","a02", "a03", "a04", "a05", "a06", "a07", "a08", "a09",
 personNumber <- c("p1","p2","p3","p4","p5","p6","p7","p8")
 
 #60 file names in each person folder:
-fileNames <- sprintf("%02d",seq(1:60)) # gives me all numbers als 2 digits so that 1, 2 is "01", "02" etc
+fileNames <- sprintf("%02d",seq(1:60)) # gives me all numbers as 2 digits so that 1, 2, ... is "01", "02" etc
 
 
 #----------------Creating the Feature_Vector as base for the Feature_Matrix----------------------------------------------

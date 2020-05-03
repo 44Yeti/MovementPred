@@ -25,16 +25,56 @@ knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE, fig.pos = "H")
 
 \pagebreak
 ## Executive Summary
-This is the final challenge in the "HarvardX Professional Certificate in Data Science" course. For this project we have the task to apply machine learning techniques which go beyond the standard linear regression we applied in the Movielens project. Even so we shall use a dataset which we not used already in the previous courses (movielens, mnist, iris...) - potential soucres are e.g. *[UCI Machine Learning Repository](https://archive.ics.uci.edu/ml/index.php)*[^1] or *[Kaggle](https://www.kaggle.com/datasets)*[^2].
-After making me some thoughts about the assignment I defined the following criteria the challenge shall provide:
+This is the final challenge in the "HarvardX Professional Certificate in Data Science" course. For this project we had the task to apply machine learning techniques which go beyond the standard linear regression we applied in the Movielens project. Even so we shall use a dataset which we not used already in the previous courses (movielens, mnist, iris...). As potential soucres *[UCI Machine Learning Repository](https://archive.ics.uci.edu/ml/index.php)*[^1] or *[Kaggle](https://www.kaggle.com/datasets)*[^2] were recommended.
+After making me some thoughts about the assignment I defined the following criteria which the challenge shall provide to me:
 
-1. The raw data has to be split up in several files, so we have the challenge to bring all this single pieces togehter in one usable dataset
+1. The raw data has to be split up in several files, so there is a challenge to bring all this single pieces togehter in one usable dataset
 2. In raw data the features shall not be pre-processed in a way that they are already "ready for use", so some pre-processing has to be done by me
 3. The machine learning challenge shall be a classification challenge with more than two features
 
-I have defined these challenges as they are topics we did not touch too much during the courses and I therefore see the need for some practise. Especially the first two point were important to me as they seem to me as skills which will be needed quite often in real life cases.
-After some searching on the UCI and Kaggle platform I found an ideal candidate in the *[Daily and Sports Activities Data Set](https://archive.ics.uci.edu/ml/datasets/Daily+and+Sports+Activities)*[^3]. 
-In this dataset 8 person had to fulfil 19 activites while their movements get measurent by some senors. 
+I have defined these challenges as they are topics we did not touch too much during the courses and I therefore see the need for some practise. Especially the first two point were important to me as they seem to me skills which will be needed quite often in real life cases.
+After some searching on the UCI and Kaggle platform I found the *[Daily and Sports Activities Data Set](https://archive.ics.uci.edu/ml/datasets/Daily+and+Sports+Activities)*[^3] on UCI. 
+For the creation of this dataset 8 person had to fulfil 19 different activites, while their movements got measurent by senors.The raw data is stored in 60 different files (each file consists out of a 125 * 45 matrix) per person per activity, which means that we have to handle $60*8*19=9120$ different files. Even so the features for the machine learning model had to be calculated from the raw data - the raw data did not provide "usable" features directly. And as the machine learning challenge was a multi-variable classification problem all requirements I set for my project challenge were given with this dataset and so my choice was done.
+During my project the articel "Comparative study on classifying human activities with miniature inertial and magnetic sensors" from Kerem Altun and Bilur Barshan[^4] was a good support, as they used the same dataset for their studies. Their articel was especially helpful by the definition of the different features, as I am not exactly a subject matter expert in the sensor-data world. Even so it helped me to set an Accuracy target for my machine learning model: They reached with their most successful model an Accuracy of over 99%, so this was my goal too.
+To make it a bit harder I skipped most of the models they applied including their most successful one (Bayesian decision making (BDM)) for my work. My set of models consits out of the following six algorithms: Penalized Multinomial Regression (PMR), k-Nearest Neighbors (k-NN), naive Bayes (nBayes), Support Vector Machines (SVM), Gradient Boosting linear (GBl) and Gradient Boosting tree (GBt). Beside the k-NN algorithm these were all models not used by the study from Altun and Barshan.
+The best result I achieved with the Gradient Boosting tree algorithm with an Accuracy of **99,1%** and so I achieved the goal I set.
+To get this result I followed the following steps: 
+
+1. Analyse and understand the raw dataset
+2. Load the different raw data files, transform them into a feature set and generate a "Feature-Vector" as our base for all next steps
+3. Generate a train- and test dataset
+4. Analyse the train dataset and do a feature reduction
+5. Train all six models with the train dataset and check its accuracy with the test dataset
+6. Analyse and discuss the final results
+
+Along these steps I have also done the structure of this document plus I added a chapter about my personal conclusion and potential future work at the end.
+
+## The raw dataset
+
+
+## Method/Analysis
+### Generate the "Feature Vector"
+
+
+
+### Train- and Test dataset
+
+
+
+### Analyse train dataset and do feature reduction
+
+
+
+### Train all six models and test accuracy with test dataset
+
+
+
+## Analyse and discuss final results
+
+
+
+## Personal Conclusion
+
 
 
 
@@ -643,6 +683,7 @@ Pattern Recognition, 43(10):3605-3620, October 2010
 [^1]: https://archive.ics.uci.edu/ml/index.php
 [^2]: https://www.kaggle.com/datasets
 [^3]: https://archive.ics.uci.edu/ml/datasets/Daily+and+Sports+Activities
+[^4]: https://www.researchgate.net/publication/223300172_Comparative_study_on_classifying_human_activities_with_miniature_inertial_and_magnetic_sensors
 
 [^3]: https://strata.uga.edu/software/pdf/pcaTutorial.pdf
 [^4]: http://www2.uaem.mx/r-mirror/web/packages/recommenderlab/recommenderlab.pdf
