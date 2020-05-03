@@ -3,12 +3,12 @@
 
 if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
 if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
-if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
-if(!require(scales)) install.packages("scales", repos = "http://cran.us.r-project.org")
-if(!require(tinytex)) install.packages("tinytex", repos = "http://cran.us.r-project.org")
-if(!require(abind)) install.packages("abind", repos = "http://cran.us.r-project.org")
+#if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
+if(!require(scales)) install.packages("scales", repos = "http://cran.us.r-project.org") #RColorBrewer included
+if(!require(tinytex)) install.packages("tinytex", repos = "http://cran.us.r-project.org") #helps by LaTeX documents
+#if(!require(abind)) install.packages("abind", repos = "http://cran.us.r-project.org")
 if(!require(matrixStats)) install.packages("matrixStats", repos = "http://cran.us.r-project.org")
-if(!require(e1071)) install.packages("e1071", repos = "http://cran.us.r-project.org")
+if(!require(e1071)) install.packages("e1071", repos = "http://cran.us.r-project.org") #sub-packages in use: utils, stats, graphics
 
 #Libraries needed for model calculations:
 if(!require(nnet)) install.packages("nnet", repos = "http://cran.us.r-project.org") #Penalized Multinomial Regression
@@ -83,36 +83,70 @@ Features <- function(f){
   Feature_Vector <<- c(f_min,f_max,f_mean,f_var,f_skew,f_kurt,as.vector(f_DFT_Mod),f_DFT_Arg, f_Autoc) #global Variable "<<-"
 }
 
-########################## Create Feature-Set (Matrix and tibble) out of raw data #######################################################
-
+########################## Create Feature_Matrix out of raw data #######################################################
+#--------------Prepare ColNames and the variables to extract the files (activites, person, files)---------------
 ColNames <- c("T_xacc", "T_yacc", "T_zacc", "T_xgyro", "T_ygyro", "T_zgyro", "T_xmag", "T_ymag", "T_zmag",
               "RA_xacc", "RA_yacc", "RA_zacc", "RA_xgyro", "RA_ygyro", "RA_zgyro", "RA_xmag", "RA_ymag", "RA_zmag",
               "LA_xacc", "LA_yacc", "LA_zacc", "LA_xgyro", "LA_ygyro", "LA_zgyro", "LA_xmag", "LA_ymag", "LA_zmag",
               "RL_xacc", "RL_yacc", "RL_zacc", "RL_xgyro", "RL_ygyro", "RL_zgyro", "RL_xmag", "RL_ymag", "RL_zmag",
               "LL_xacc", "LL_yacc", "LL_zacc", "LL_xgyro", "LL_ygyro", "LL_zgyro", "LL_xmag", "LL_ymag", "LL_zmag")
+
+#19 folders for the 19 activities:
 activityNames <- c("a01","a02", "a03", "a04", "a05", "a06", "a07", "a08", "a09", "a10", "a11", "a12", "a13", "a14", "a15", 
                    "a16", "a17", "a18", "a19")
+
+#8 person folders in each activity folder:
 personNumber <- c("p1","p2","p3","p4","p5","p6","p7","p8")
+
+#60 file names in each person folder:
 fileNames <- sprintf("%02d",seq(1:60)) # gives me all numbers als 2 digits so that 1, 2 is "01", "02" etc
 
-#Loop for the activites
-for(z in activityNames){
+
+#----------------Creating the Feature_Vector as base for the Feature_Matrix----------------------------------------------
+#Download the raw data
+td <- tempdir()
+tf = tempfile(tmpdir=td, fileext=".zip")
+download.file("https://publicdatarfu.blob.core.windows.net/publicdatarfucontainer/data.zip", tf)
+unzip(tf, exdir=td)
+#I had "\\" as separater on the path which did not work on my windows system, to correct this I found the
+#following correction option, which I hope will solved in a way that my code is also running on a non windows
+#system without any problems. In worst case please adjust the separaters in fpath manually...
+fpath <- normalizePath(td, winslash = "/", mustWork = NA)
+
+#Loop for the 19 activities
+FV2 <- lapply(z <- activityNames, function(z){
   
-  #Loop for the person
-  for(y in personNumber){
+  #Loop for the 8 person
+  FV1 <- lapply(y <- personNumber, function(y){
     
     #Loop for the 60 time-series files
-    for(x in fileNames){
-      file <- paste0("C:/Users/fure/OneDrive/Projects/R/TempRohDaten/data/",z,paste0("/",y,paste0("/s",x,".txt")))
+    FV <- lapply(x <- fileNames, function(x){
+      file <- paste0(fpath,"/data/",z,"/",y,"/s",x,".txt")
+      #file <- paste0("C:/Users/fure/OneDrive/Projects/R/TempRohDaten/data/",z,paste0("/",y,paste0("/s",x,".txt")))
       f <- as.matrix(read_delim(file, delim = ",", col_names = ColNames))
-      if(exists("Feature_Vector")==FALSE){
-        Features(f)}
+      if(exists("FV")==FALSE){
+        FV <- vector("list",1)
+        FV[[x]] <- Features(f)}
       else{
-        Feature_Vector <- c(Feature_Vector, Features(f))}
-    }
-  }
-}
+        FV[[x]] <- Features(f)}
+    })
+    
+    if(exists("FV1")==FALSE){
+      FV1 <- vector("list",1)
+      FV1[[y]] <- Reduce(c,FV)}
+    else{
+      FV1[[y]] <- Reduce(c,FV)}
+  })
+  if(exists("FV2")==FALSE){
+    FV2 <- vector("list",1)
+    FV2[[z]] <- Reduce(c,FV1)}
+  else{
+    FV2[[z]] <- Reduce(c,FV1)}
+})
 
+Feature_Vector <- Reduce(c,FV2)
+
+#--------------------Final step: Creat Feature_Matrix and clean-up---------------------------
 #Prepare for the Naming of the columns and rows:
 temp <- rep(ColNames,each=5)
 temp1 <- c(rep(c("DFT_Mod_1_","DFT_Mod_2_","DFT_Mod_3_","DFT_Mod_4_","DFT_Mod_5_"),45))
@@ -137,13 +171,10 @@ DimNames_Row <- c(rep("a01", (60*8)),rep("a02", (60*8)),rep("a03", (60*8)),rep("
                   rep("a16", (60*8)),rep("a17", (60*8)),rep("a18", (60*8)),rep("a19", (60*8)))
 
 #Generate a Matrix out of the Feature_Vector:
-Feature_Matrix <- matrix(Feature_Vector,9120,1215,byrow = TRUE, dimnames = list(DimNames_Row, DimNames_Col))
-
-#Generate a Tibble including the activity column:
-#Feature_Tibble <- Feature_Matrix %>% as_tibble() %>% cbind(DimNames_Row,.) %>% rename(Activity = DimNames_Row)
+Feature_Matrix1 <- matrix(Feature_Vector,9120,1215,byrow = TRUE, dimnames = list(DimNames_Row, DimNames_Col))
 
 #remove unnessecary objects
-rm(x,y,z,activityNames,personNumber,fileNames,f, file,temp, temp1, temp_Arg, temp_Mod, temp_Autoc,Feature_Vector)
+rm(x,y,z,activityNames,personNumber,fileNames,f,file,temp,temp1,temp_Arg,temp_Mod,temp_Autoc,FV2,Feature_Vector)
 
 ###################### Generate Train and Test Data ################################################################
 #Split Feature dataset in a Feature_train and Feature_test set - use 15% of data for test set
@@ -298,7 +329,7 @@ Fit_gb <- train(Activity ~ ., data = pca_train,
                     method = "xgbLinear",
                     trControl = fitControl,
                     tuneGrid = data.frame(nrounds= 150, lambda=c(0,0.1), 
-                                          gamma=0, eta=c(0.3,0.4)))
+                                          alpha=0, eta=c(0.3,0.4)))
 Fit_gb
 
 predictions <- predict(Fit_gb, pca_test)
