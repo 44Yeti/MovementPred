@@ -109,7 +109,7 @@ tf = tempfile(tmpdir=td, fileext=".zip")
 download.file("https://publicdatarfu.blob.core.windows.net/publicdatarfucontainer/data.zip", tf)
 unzip(tf, exdir=td)
 #I had "\\" as separater on the path which did not work on my windows system, to correct this I found the
-#following correction option, which I hope will solved in a way that my code is also running on a non windows
+#following correction option, which I hope will solve in a way that my code is also running on a non windows
 #system without any problems. In worst case please adjust the separaters in fpath manually...
 fpath <- normalizePath(td, winslash = "/", mustWork = NA)
 
