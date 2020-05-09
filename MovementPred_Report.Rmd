@@ -6,7 +6,7 @@ output:
   pdf_document:
     toc: true
     toc_depth: 4
-    fig_caption: yes
+    fig_caption: true
     keep_tex: true
     number_sections: true
 header-includes:
@@ -49,12 +49,72 @@ To get this result I followed the following steps:
 
 Along these steps I have also done the structure of this document plus I added a chapter about my personal conclusion and potential future work at the end.
 
-## The raw dataset
+## The raw data dataset
+The raw dataset one can find under following link: https://archive.ics.uci.edu/ml/datasets/Daily+and+Sports+Activities. 
+To generate this data 8 people (4 women, 4 men) got equipped with 5 sensor units each. The sensor units were positioned at the torso (T), right arm (RA), left arm (LA), right leg (RL) and left leg (LL).
+Each of this sensor units included three different sensors, of which each delivered values for the x-, y- and z-axis. Therefore for all measure points in time we get three values from the accelerometer- (xacc, yacc, zacc), gyroscope- (xgyro, ygyro, zgyro) and magnetometer-sensors (xmag, ymag, zmag) each. This is how such a sensor unit is looking like:
+```{r SensorPicture, echo=FALSE, fig.cap="MTx 3-DOF orientation tracker (reprinted from http://www.xsens.com/en/general/mtx)"}
+SensorPic= "https://publicdatarfu.blob.core.windows.net/publicdatarfucontainer/SensorUnit.png"
+download.file(SensorPic,'SensorPic.png', mode = 'wb')
+knitr::include_graphics("SensorPic.png")
+```
+   
+As the measurements get done in a pace of 25 Hertz this means every second we get the result of 25 measure points in time and as each measure point includes 45 values (5 sensor units * 3 sensors * 3 axis) all second we get $25 * 45 = 1125$ values. In the dataset this data got captured as follows: per each 5 second they generated a txt-file in which the values are stored as a 125 * 45 matrix (125 rows as we have 25 * 5 "capture points"). The build-up logic of the files is allways the same and follows the following pattern:
+Columns 1-45 correspond to:
+   
+T_xacc, T_yacc, T_zacc, T_xgyro, ..., T_ymag, T_zmag, RA_xacc, RA_yacc, RA_zacc, RA_xgyro, ..., RA_ymag, RA_zmag, LA_xacc, LA_yacc, LA_zacc, LA_xgyro, ..., LA_ymag, LA_zmag, RL_xacc, RL_yacc, RL_zacc, RL_xgyro, ..., RL_ymag, RL_zmag, LL_xacc, LL_yacc, LL_zacc, LL_xgyro, ..., LL_ymag, LL_zmag
+   
+Therefore:
 
+* columns 1-9 correspond to the sensors in unit 1 (T)
+* columns 10-18 correspond to the sensors in unit 2 (RA)
+* columns 19-27 correspond to the sensors in unit 3 (LA)
+* columns 28-36 correspond to the sensors in unit 4 (RL)
+* columns 37-45 correspond to the sensors in unit 5 (LL) 
+   
+Now as we know how the single input files are structured let us zoom out and have a look at the activities the participants were measured at. 
+Each participant had to performe the following 19 activites for exact 5 minutes:
+
+* sitting (A1)
+* standing (A2)
+* lying on back and on right side (A3 and A4)
+* ascending and descending stairs (A5 and A6)
+* standing in an elevator still (A7)
+* and moving around in an elevator (A8)
+* walking in a parking lot (A9)
+* walking on a treadmill with a speed of 4 km/h (in flat and 15 deg inclined positions) (A10 and A11)
+* running on a treadmill with a speed of 8 km/h (A12)
+* exercising on a stepper (A13)
+* exercising on a cross trainer (A14)
+* cycling on an exercise bike in horizontal and vertical positions (A15 and A16)
+* rowing (A17)
+* jumping (A18)
+* and playing basketball (A19)
+  
+In addtion it is to say that the subjects did not get any guidance how to performe the activities so it is likely that we will see some "inter-subject" variations.
+
+So now we have all components together and can have a look how the dataset is delivered. First of all it is a zip.file called "data.zip". Within this zip.file we finde a folder per activity (folder a01 till a19). Within each of this folders there is a folder per subject (folder p1 till p8). And finally within this subject folders are always 60 input files (files s01.txt till s60.txt) - explanation: 5 seconds are captured in one file, each activity get measured for 5min equals 60 files.
+In a classical Windows Explorer view that looks like this:
+```{r Datastructure, echo=FALSE, fig.cap="Visualisation of data structure", fig.align='center'}
+DataPic= "https://publicdatarfu.blob.core.windows.net/publicdatarfucontainer/datenstruktur.PNG"
+download.file(DataPic,'DataPic.png', mode = 'wb')
+knitr::include_graphics("DataPic.png")
+```
+
+If we now have a look at the measured values itself, then we realise that a) there are a lot of values to deal with (51.3 millions) and b) the single values do not really have a "meaning" they are "just" single points on an axis. To get a clear and somehow meaningful set of features we have to bring this single values somehow in a context, either by analysing them in a time series, by its distribuition or by some statistical performance indicators. And this leads me over to the next chapter where we will see how we produced the final "Feature Vector" with which we then fed the different algorithms.
 
 ## Method/Analysis
 ### Generate the "Feature Vector"
+So here I was with 9'120 single files and something over 50 million values which have to be transformed and merged into one single matrix, where each column is a meaningful feature-vector.
+First I did not really have a clue how to takle this topic and as chances were low that I will get the master plan by thinking it through only I started with addressing just one of the topics to be solved: How to load the data from the single files into one R data object.
+My initial idea was to load all raw data in a matrix per activity and all 19 matrixes were stored in an array.
 
+Weiter mit: 
+Schnell gemerkt, dass nix, aber viel gelernt - gestartet mit einem File, dann für eine Person, dann für eine Aktivität und dann für alles - verschachtelte if-Funktionen, Beschriftung, Überführung von txt. zu Matrix usw. 
+Dann mit den Feature Umrechnung begonnen und eine neue If-Funktion gemacht, wo am Schluss eine grosse Matrix daraus entstand
+Nun Zeitprobleme und wechel auf lapply super Zeiten, aber dann wechsel auf externe Datei und Zeit waren schlimm...
+Dann wieder Probleme wegen dem zip. daher zuerst downloaden und dann von dort weiter
+Jetzt zufrieden
 
 
 ### Train- and Test dataset
