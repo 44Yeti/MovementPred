@@ -255,7 +255,6 @@ plot(Freq,ff1_DFT[1:125], main="Activity 'Walking': Acceleration sensor, x-axis,
 abline(v=12.5, col="red")
 ```
   
-
 *Autocorrelation*
   
 Like with DFT we must decide which values of an autocorrelation analysis we want to include in our feature-set. For this we start with two examples of autocorrelation with a lag of 125:
@@ -778,7 +777,7 @@ CM_multi_Acc <- CM_multi$overall["Accuracy"]
 ```
   
 ```{r}
-Fit_multi
+Fit_multi #Note: For all the upcoming Fit_xx outputs the 19 classes were not divided into two lines and therefore went beyond the margin. As I did not find a way to fix this I adjusted this manually for the final PDF report in the "MovementPred_Report.tex" file
 ```
   
 ```{r k-Nearest Neighbour}
@@ -952,7 +951,7 @@ As this project achieved its goals I am quite happy with the results: The data l
 * Personal interests: As I have not learned a programming language before this course, I am a newbie in coding. So, I assume an experienced coder would have solved several topics more efficient then me, therefore it would certainly be interesting to have a look at some parts of my code with such an expert. Same applies for some mathematical parts as I did not find an answer on all the questions which popped up.
 * Explore further optimisations: If I not had to deal with the compute (and RAM) limits of my laptop I would once like to work with the PCA version where I set scale.=TRUE to see how far I get with this option. Even so I am fascinated about deep learning but have no practical experience with it yet. To see how such an approach would perform on this type of problem would certainly be interesting too.
 
-
+\pagebreak
 ## Main References
 The main references I used are listed below. But these are just the sources I consulted multiple times throughout the project. Beside those I also  googled several things and therefore read multiple websites, chat forums, Wikipedia pages and so on to solve the different challenges I faced.
 
