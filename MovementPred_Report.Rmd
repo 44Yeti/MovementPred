@@ -1,65 +1,89 @@
 ---
 title: "Movement Prediction Project"
 author: "44Yeti"
-date: "10 5 2020"
-output: 
+date: "2020 06 03"
+output:
   pdf_document:
-    toc: true
+    fig_caption: yes
+    keep_tex: yes
+    number_sections: yes
+    toc: yes
     toc_depth: 4
-    fig_caption: true
-    keep_tex: true
-    number_sections: true
-header-includes:
- \usepackage{booktabs}
- \usepackage{longtable}
- \usepackage{array}
- \usepackage{multirow}
- \usepackage{wrapfig}
- \usepackage{float}
- \floatplacement{figure}{H}
+  word_document:
+    toc: yes
+    toc_depth: '4'
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '4'
+header-includes: \usepackage{booktabs} \usepackage{longtable} \usepackage{array} \usepackage{multirow}
+  \usepackage{wrapfig} \usepackage{float} \floatplacement{figure}{H}
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE, fig.pos = "H")
 ```
 
+```{r add needed libraries}
+#Loading libraries:
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+#if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
+if(!require(scales)) install.packages("scales", repos = "http://cran.us.r-project.org") #RColorBrewer included
+if(!require(tinytex)) install.packages("tinytex", repos = "http://cran.us.r-project.org") #helps by LaTeX documents
+#if(!require(abind)) install.packages("abind", repos = "http://cran.us.r-project.org")
+if(!require(matrixStats)) install.packages("matrixStats", repos = "http://cran.us.r-project.org")
+if(!require(e1071)) install.packages("e1071", repos = "http://cran.us.r-project.org") #sub-packages in use: utils, stats, graphics
+if(!require(AppliedPredictiveModeling)) install.packages("AppliedPredictiveModeling", repos = "http://cran.us.r-project.org") #for graphics
+
+#Libraries needed for model calculations:
+if(!require(nnet)) install.packages("nnet", repos = "http://cran.us.r-project.org") #Penalized Multinomial Regression
+if(!require(klaR)) install.packages("klaR", repos = "http://cran.us.r-project.org") #naives Bayes
+if(!require(xgboost)) install.packages("xgboost", repos = "http://cran.us.r-project.org") #Gradient Boosting
+ 
+# Library just used for the report - not needed in the code script:
+if(!require(knitr)) install.packages("knitr", repos = "http://cran.us.r-project.org")
+if(!require(formatR)) install.packages("formatR", repos = "http://cran.us.r-project.org")
+```
+
+
 \pagebreak
 ## Executive Summary
-This is the final challenge in the "HarvardX Professional Certificate in Data Science" course. For this project we had the task to apply machine learning techniques which go beyond the standard linear regression we applied in the Movielens project. Even so we shall use a dataset which we not used already in the previous courses (movielens, mnist, iris...). As potential soucres *[UCI Machine Learning Repository](https://archive.ics.uci.edu/ml/index.php)*[^1] or *[Kaggle](https://www.kaggle.com/datasets)*[^2] were recommended.
+This is the final challenge in the "HarvardX Professional Certificate in Data Science" course. For this project we had the task to apply machine learning techniques which go beyond the standard linear regression we applied in the Movielens project before. Even so we shall use a dataset which we not used already in the previous courses (movielens, mnist, iris...). As potential sources *[UCI Machine Learning Repository](https://archive.ics.uci.edu/ml/index.php)*[^1] or *[Kaggle](https://www.kaggle.com/datasets)*[^2] were recommended.
 After making me some thoughts about the assignment I defined the following criteria which the challenge shall provide to me:
 
-1. The raw data has to be split up in several files, so there is a challenge to bring all this single pieces togehter in one usable dataset
-2. In raw data the features shall not be pre-processed in a way that they are already "ready for use", so some pre-processing has to be done by me
-3. The machine learning challenge shall be a classification challenge with more than two features
+1. The raw data must be split up in several files, so there is a challenge to bring all this single pieces together in one usable dataset
+2. Raw data shall not be pre-processed in a way that the features are "ready for use", so some pre-processing must be done by me
+3. The machine learning challenge shall be a classification challenge with more than two classes and more then 10 different predictors
 
-I have defined these challenges as they are topics we did not touch too much during the courses and I therefore see the need for some practise. Especially the first two point were important to me as they seem to me skills which will be needed quite often in real life cases.
+I have defined these challenges as they are topics we did not touch too much during the courses and I therefore saw the need for some practise. Especially the first two point were important to me as these skills seem to me something which will be needed quite often in real-life cases. As I have defined these challenges as key for my work, they will also get some weight in this report, therefore the chapter "Generate the Feature Matrix" will be quite detailed compared to others.
 After some searching on the UCI and Kaggle platform I found the *[Daily and Sports Activities Data Set](https://archive.ics.uci.edu/ml/datasets/Daily+and+Sports+Activities)*[^3] on UCI. 
-For the creation of this dataset 8 person had to fulfil 19 different activites, while their movements got measurent by senors.The raw data is stored in 60 different files (each file consists out of a 125 * 45 matrix) per person per activity, which means that we have to handle $60*8*19=9120$ different files. Even so the features for the machine learning model had to be calculated from the raw data - the raw data did not provide "usable" features directly. And as the machine learning challenge was a multi-variable classification problem all requirements I set for my project challenge were given with this dataset and so my choice was done.
-During my project the articel "Comparative study on classifying human activities with miniature inertial and magnetic sensors" from Kerem Altun and Bilur Barshan[^4] was a good support, as they used the same dataset for their studies. Their articel was especially helpful by the definition of the different features, as I am not exactly a subject matter expert in the sensor-data world. Even so it helped me to set an Accuracy target for my machine learning model: They reached with their most successful model an Accuracy of over 99%, so this was my goal too.
-To make it a bit harder I skipped most of the models they applied including their most successful one (Bayesian decision making (BDM)) for my work. My set of models consits out of the following six algorithms: Penalized Multinomial Regression (PMR), k-Nearest Neighbors (k-NN), naive Bayes (nBayes), Support Vector Machines (SVM), Gradient Boosting linear (GBl) and Gradient Boosting tree (GBt). Beside the k-NN algorithm these were all models not used by the study from Altun and Barshan.
-The best result I achieved with the Gradient Boosting tree algorithm with an Accuracy of **99,1%** and so I achieved the goal I set.
+For the creation of this dataset 8 person had to fulfil 19 different activities, while their movements got measured by sensors. The raw data is stored in 60 different files (each file consists out of a 125 * 45 matrix) per person per activity, which means that we must handle $60*8*19=9120$ different files. Even so the features for the machine learning model had to be calculated from the raw data - the raw data did not provide "usable" features directly. And as the machine learning challenge was a multiclass classification problem, all requirements I set as my project challenge were given with this dataset. So, my choice was done.
+During my project the study "Comparative study on classifying human activities with miniature inertial and magnetic sensors" from Kerem Altun, Bilur Barshan and Orkun Tuncel[^4] was a good support, as they used the same dataset for their studies. As I am not exactly a subject matter expert in the domain of sensor-data, their work was especially helpful by the definition of the different features. Even so it helped me to set an accuracy target for my machine learning model: They reached with their most successful model an accuracy of over 99%, so this was my goal too.
+But as I wanted to prevent that it gets too much of a "copy" of their study, I skipped most of the models they applied, including their most successful one (Bayesian decision making (BDM)). My set of models consists out of the following six algorithms: Penalized Multinomial Regression (PMR), k-Nearest Neighbours (k-NN), naive Bayes (nBayes), Support Vector Machines (SVM), Gradient Boosting linear (GBl) and Gradient Boosting tree (GBt). Beside SVM and k-NN algorithm these were all models not used by the study from Altun/Barshan/Tuncel.
+The best result I achieved with the "Gradient Boosting (tree)" algorithm with an accuracy of **99,49%**. Thus I have reached my set goal.
 To get this result I followed the following steps: 
 
 1. Analyse and understand the raw dataset
-2. Load the different raw data files, transform them into a feature set and generate a "Feature-Vector" as our base for all next steps
+2. Load the different raw data files, transform them into a feature set and generate a "Feature Matrix" as our base for all next steps
 3. Generate a train- and test dataset
 4. Analyse the train dataset and do a feature reduction
-5. Train all six models with the train dataset and check its accuracy with the test dataset
-6. Analyse and discuss the final results
+5. Train all six models with the train dataset and apply the trained models against the test dataset
+6. Analyse and discuss the results
 
 Along these steps I have also done the structure of this document plus I added a chapter about my personal conclusion and potential future work at the end.
 
 ## The raw data dataset
 The raw dataset one can find under following link: https://archive.ics.uci.edu/ml/datasets/Daily+and+Sports+Activities. 
 To generate this data 8 people (4 women, 4 men) got equipped with 5 sensor units each. The sensor units were positioned at the torso (T), right arm (RA), left arm (LA), right leg (RL) and left leg (LL).
-Each of this sensor units included three different sensors, of which each delivered values for the x-, y- and z-axis. Therefore for all measure points in time we get three values from the accelerometer- (xacc, yacc, zacc), gyroscope- (xgyro, ygyro, zgyro) and magnetometer-sensors (xmag, ymag, zmag) each. This is how such a sensor unit is looking like:
-```{r SensorPicture, echo=FALSE, fig.cap="MTx 3-DOF orientation tracker (reprinted from http://www.xsens.com/en/general/mtx)"}
+Each of these sensor units included three different sensors, of which each delivered values for the x-, y- and z-axis. Therefore, for all measure points in time we get three values from the accelerometer- (xacc, yacc, zacc), gyroscope- (xgyro, ygyro, zgyro) and magnetometer-sensors (xmag, ymag, zmag) each. This is how such a sensor unit is looking like:
+```{r SensorPicture, fig.cap="MTx 3-DOF orientation tracker (reprinted from http://www.xsens.com/en/general/mtx)"}
 SensorPic= "https://publicdatarfu.blob.core.windows.net/publicdatarfucontainer/SensorUnit.png"
 download.file(SensorPic,'SensorPic.png', mode = 'wb')
 knitr::include_graphics("SensorPic.png")
 ```
    
-As the measurements get done in a pace of 25 Hertz this means every second we get the result of 25 measure points in time and as each measure point includes 45 values (5 sensor units * 3 sensors * 3 axis) all second we get $25 * 45 = 1125$ values. In the dataset this data got captured as follows: per each 5 second they generated a txt-file in which the values are stored as a 125 * 45 matrix (125 rows as we have 25 * 5 "capture points"). The build-up logic of the files is allways the same and follows the following pattern:
+As the measurements get done in a pace of 25 Hertz this means every second we get the result of 25 measure points, and as each measure point includes 45 values (5 sensor units * 3 sensors * 3 axis) all second we get $25 * 45 = 1125$ values. In the dataset this data got captured as follows: per each 5 second they generated a txt-file in which the values are stored as a 125 * 45 matrix (125 rows as we have 25 * 5 "capture points"). The build-up logic of the files is always the same and follows the following pattern:
 Columns 1-45 correspond to:
    
 T_xacc, T_yacc, T_zacc, T_xgyro, ..., T_ymag, T_zmag, RA_xacc, RA_yacc, RA_zacc, RA_xgyro, ..., RA_ymag, RA_zmag, LA_xacc, LA_yacc, LA_zacc, LA_xgyro, ..., LA_ymag, LA_zmag, RL_xacc, RL_yacc, RL_zacc, RL_xgyro, ..., RL_ymag, RL_zmag, LL_xacc, LL_yacc, LL_zacc, LL_xgyro, ..., LL_ymag, LL_zmag
@@ -73,7 +97,7 @@ Therefore:
 * columns 37-45 correspond to the sensors in unit 5 (LL) 
    
 Now as we know how the single input files are structured let us zoom out and have a look at the activities the participants were measured at. 
-Each participant had to performe the following 19 activites for exact 5 minutes:
+Each participant had to perform the following 19 activities for exact 5 minutes:
 
 * sitting (A1)
 * standing (A2)
@@ -91,659 +115,862 @@ Each participant had to performe the following 19 activites for exact 5 minutes:
 * jumping (A18)
 * and playing basketball (A19)
   
-In addtion it is to say that the subjects did not get any guidance how to performe the activities so it is likely that we will see some "inter-subject" variations.
+In addition, it is to say that the subjects did not get any guidance how to perform the activities. So, it is likely that we will see some "inter-subject" variations.
 
-So now we have all components together and can have a look how the dataset is delivered. First of all it is a zip.file called "data.zip". Within this zip.file we finde a folder per activity (folder a01 till a19). Within each of this folders there is a folder per subject (folder p1 till p8). And finally within this subject folders are always 60 input files (files s01.txt till s60.txt) - explanation: 5 seconds are captured in one file, each activity get measured for 5min equals 60 files.
+Now we have all components together and can have a look how the dataset is delivered. First of all it is a zip.file called "data.zip". Within this zip.file we find a folder per activity (folder a01 till a19). Within each of these folders there is a folder per subject (folder p1 till p8). And finally, within these subject folders are always 60 input files (files s01.txt till s60.txt) - explanation: 5 seconds are captured in one file, each activity gets measured for 5min equals 60 files.
 In a classical Windows Explorer view that looks like this:
-```{r Datastructure, echo=FALSE, fig.cap="Visualisation of data structure", fig.align='center'}
+```{r Datastructure, fig.cap="Visualisation of data structure", fig.align='center'}
 DataPic= "https://publicdatarfu.blob.core.windows.net/publicdatarfucontainer/datenstruktur.PNG"
 download.file(DataPic,'DataPic.png', mode = 'wb')
 knitr::include_graphics("DataPic.png")
 ```
 
-If we now have a look at the measured values itself, then we realise that a) there are a lot of values to deal with (51.3 millions) and b) the single values do not really have a "meaning" they are "just" single points on an axis. To get a clear and somehow meaningful set of features we have to bring this single values somehow in a context, either by analysing them in a time series, by its distribuition or by some statistical performance indicators. And this leads me over to the next chapter where we will see how we produced the final "Feature Vector" with which we then fed the different algorithms.
+If we now have a look at the measured values itself, then we realise that a) there are a lot of values to deal with (51.3 millions) and b) the single values do not really have a "meaning" they are "just" single points on an axis. To get a clear and somehow meaningful set of features we must bring this single values somehow in a context, either by analysing them in a time series, by its distribution or by some statistical performance indicators. And this leads me over to the next chapter where we will see how we produced the final "Feature Vector" with which we then fed the different algorithms.
 
 ## Method/Analysis
-### Generate the "Feature Vector"
-So here I was with 9'120 single files and something over 50 million values which have to be transformed and merged into one single matrix, where each column is a meaningful feature-vector.
-First I did not really have a clue how to takle this topic and as chances were low that I will get the master plan by thinking it through only I started with addressing just one of the topics to be solved: How to load the data from the single files into one R data object.
-My initial idea was to load all raw data in a matrix per activity and all 19 matrixes were stored in an array.
-
-Weiter mit: 
-Schnell gemerkt, dass nix, aber viel gelernt - gestartet mit einem File, dann für eine Person, dann für eine Aktivität und dann für alles - verschachtelte if-Funktionen, Beschriftung, Überführung von txt. zu Matrix usw. 
-Dann mit den Feature Umrechnung begonnen und eine neue If-Funktion gemacht, wo am Schluss eine grosse Matrix daraus entstand
-Nun Zeitprobleme und wechel auf lapply super Zeiten, aber dann wechsel auf externe Datei und Zeit waren schlimm...
-Dann wieder Probleme wegen dem zip. daher zuerst downloaden und dann von dort weiter
-Jetzt zufrieden
-
-
-### Train- and Test dataset
-
-
-
-### Analyse train dataset and do feature reduction
-
-
-
-### Train all six models and test accuracy with test dataset
-
-
-
-## Analyse and discuss final results
-
-
-
-## Personal Conclusion
-
-
-
-
-
-The task is to establish a movie recommendation algorithm based on the MovieLens dataset.
-This dataset consists of millions of movie ratings of thousands of movies from thousands of users.
-The goal is it to predict the movie ratings with an "root-mean-square-error" (RMSE) below **0.86490**.
-For this exercise we used the [10M MovieLens dataset](https://grouplens.org/datasets/movielens/10m/) version to make computation easier possible.
-The calculations are done as approximations and not with a predefined algorithm like e.g. glm() function as this would have crashed my computer.
-The approach was to build an algorithm following this logic: $Y_{i,u,c} = \mu +b_{i}+b_{u}+b_{?}+\epsilon_{i,u,c}$ where Y~i,u,c~ are the predicted ratings based on $\mu$, the movie bias (b~i~), the user bias (b~u~), the bias out of findings from Rating-Matrix decomposition (b~?~) and the non-further specified remaining error ($\epsilon$). To get to the final version of this algorithm (incl. final validation) I followed the following five steps:
-
-1. Generate the edx dataset: Download and wrangle "10M Movilens" data. Split it into a dataset to work with - the "edx" dataset - and a validation dataset. This step was done by HarvardX for us.
-2. Understand, wrangle and analyse edx dataset
-3. Build a train- and test dataset out of edx dataset and define the RMSE function
-4. Building the algorithm by a step by step approach:
-    i) Just use $\mu+\epsilon$
-    ii) add movie bias (b~i~) to the equation
-    iii) add user bias (b~u~) to the equation
-    iv) do improvements thanks to regularization
-    v) Adding a bias, we calculate out of the decomposition of the Rating-Matrix
-5. Validate algorithm against validation dataset and discuss result  
-
-The knowledge/information used - beside different internet researches - is mainly from the material we learned in the module 8 of the HarvardX Data Science course series, recommenderlab documentation [^1], and two further publications one about singular value decomposition [^2] (SVD) and a tutorial about principal component analysis [^3] (PCA).
- 
-The RMSE value the algorithm achieved running against validation dataset is **0.86446** which means the final algorithm is good enough to achieve the goal set.
-  
-## Method/Analysis
-### Generate edx dataset
-The code to generate the edx dataset was provided by HarvardX. As there is only one minor change (added three additional libraries) it will not be commented further. In the .Rmd version of this document the code will be included.  
-
-```{r starting code given by HarvardX, include=FALSE}
-#####################################
-# Create edx set, validation set ####
-#####################################
-
-# Note: this process could take a couple of minutes
-
-if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
-if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
-if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
-#Add 2 libraries to the default code as we will need them later
-if(!require(recommenderlab)) install.packages("recommenderlab", repos = "http://cran.us.r-project.org")
-if(!require(scales)) install.packages("scales", repos = "http://cran.us.r-project.org")
-if(!require(scales)) install.packages("tinytex", repos = "http://cran.us.r-project.org")
-
-# MovieLens 10M dataset:
-# https://grouplens.org/datasets/movielens/10m/
-# http://files.grouplens.org/datasets/movielens/ml-10m.zip
-
-dl <- tempfile()
-download.file("http://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
-
-ratings <- fread(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
-                 col.names = c("userId", "movieId", "rating", "timestamp"))
-
-movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
-colnames(movies) <- c("movieId", "title", "genres")
-movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(levels(movieId))[movieId],
-                                           title = as.character(title),
-                                           genres = as.character(genres))
-
-movielens <- left_join(ratings, movies, by = "movieId")
-
-# Validation set will be 10% of MovieLens data
-set.seed(1, sample.kind="Rounding")
-# if using R 3.5 or earlier, use `set.seed(1)` instead
-test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
-edx <- movielens[-test_index,]
-temp <- movielens[test_index,]
-
-# Make sure userId and movieId in validation set are also in edx set
-validation <- temp %>% 
-  semi_join(edx, by = "movieId") %>%
-  semi_join(edx, by = "userId")
-
-# Add rows removed from validation set back into edx set
-removed <- anti_join(temp, validation)
-edx <- rbind(edx, removed)
-
-rm(dl, ratings, movies, test_index, temp, movielens, removed)
-
-```
-  
-  
-### Understand, clean and analyse edx dataset
-
-```{r myTheme}
-# set settings for graphs:
-myTheme <- theme(axis.title = element_text(size = 13),
-  axis.text.x = element_text(size = 10), 
-  axis.text.y = element_text(size = 10))
-```
-
-First we will have a look at edx dataset to get a "look and feel" for it:  
-
-```{r analysis 1, echo=TRUE}
-head(edx)
-dim(edx)
-class(edx)
-```
-  
-So we have a `r class(edx)` with `r nrow(edx)` rows and `r ncol(edx)` columns, which is by the way composed of `r n_distinct(edx$movieId)` different movies and `r n_distinct(edx$userId)` different users.  
-  
-Next we will check if there are any zeros or "NA" in the dataset:  
-
-```{r zero_na, echo=TRUE}
-edx %>% filter(rating == 0) %>% tally()
-sum(is.na(edx))
-```
-  
-As everything looks quite good for this exercise no further data cleaning would be necessary. Nevertheless, it could be handy for future work to separate the movie title from the release year - so that we get a data frame with 7 columns. Even so  for better readability there is an adjustment of the column sequence. After these changes the new data.frame looks like this (new dataset name is "edx1"):  
-
-```{r edx1, include=TRUE}
-#Split title column in two columns: "title" and "year" and adjust classes of col.
-edx1 <- edx %>% extract(title, c("title","year"), regex = "^(.*)\\s[(](\\d{4})[)]$")
-edx1 <- edx1 %>% mutate(year = as.integer(year), genres = as.factor(genres))
-
-#Better readability by bringing columns closer together which belong together
-edx1 <- edx1[,c(2,5,6,7,1,3,4)]
-head(edx1,5)
-```
-  
-Now let us do some visualization to get more insights about the data:  
-
-```{r gap rated movies, fig.cap= "Visualization of the Gaps in movie ratings shown by a random sample of 100 users"}
-users <- sample(unique(edx1$userId), 100)
-rafalib::mypar()
-edx1 %>% filter(userId %in% users) %>% 
-  select(userId, movieId, rating) %>%
-  mutate(rating = 1) %>%
-  spread(movieId, rating) %>% select(sample(ncol(.), 100)) %>% 
-  as.matrix() %>% t(.) %>%
-  image(1:100, 1:100,. , xlab="Movies", ylab="Users")
-abline(h=0:100+0.5, v=0:100+0.5, col = "grey")
-```
-  
-```{r rated movies, fig.cap= "Distribution of amount of movie ratings"}
-#First insights: Some movies get more rated then others:
-edx1 %>% 
-  dplyr::count(movieId) %>% 
-  ggplot(aes(n)) + 
-  geom_histogram(bins = 30, color = "black") + 
-  scale_x_log10() + 
-  ggtitle("Movies") +
-  labs(x = "Amount of ratings movies got", y="Amount of movies per 'amount of rating'-category") +
-  myTheme
-```
-  
-Figure 1 and 2 show in different ways the "gaps" we have in the ratings, meaning that by far not all movies got rated by all the users. This we must take into consideration when we build the algorithm as this could adulterate our results. For example, when ratings far away from the average are backed only from few users or when we want to work with a userId/movieId/rating-Matrix to do factorization.  
-  
-Concerning the ratings, it seems that people do prefer the integer values. Even so there is a clear tendency towards ratings above the scale average of 2.5 towards a rating between "above average to good" (3-4):  
-
-```{r rated by user, fig.cap= "Distribution of ratings"}
-#First insights: Some users are rating more than others:
-edx1 %>% 
-  ggplot(aes(rating)) +
-  geom_histogram(binwidth = 0.5, color = "black") + 
-  ggtitle("Distribution of Ratings") +
-  labs(x = "Rating scale", y="Amount of entries per Rating option") +
-  myTheme
+### Generate the "Feature Matrix"
+So, here I was with 9'120 single files and something over 50 million values which have to be transformed and merged into one single matrix, where each column is a meaningful feature-vector.
+First I did not really have a clue how to tackle this topic. As chances were low that I will get the master plan by just thinking it through, I started with addressing just one of the topics to be solved: How to load the data from the single files into one R data object?
+My initial idea was to load all raw data in a matrix per activity and all these 19 matrixes are in turn part of an array.
+As a first step I had to define how to extract the data of one single file. The files follow a structure where there are 45 values per row separated by a comma and there are 125 such rows in each file. So, the structure of the future 125*45 matrix is already given, therefore this step should not be too hard. To simplify things even further I stored the raw dataset on a local drive in a unziped format. This is how the first "extraction code" looked like: 
+```{r Extract file, echo=TRUE, eval=FALSE}
+# This code is not part of the final code script - as it was just an intermediate step
+file1 <- paste0("C:/Users/XXX/XXX/Projects/R/TempRohDaten/data/a01/p1/s01.txt")
+             a <- as.matrix(read_delim(file1, delim = ",", col_names = ColNames))
 ```
    
-   
-### Build a train- and test dataset + define RMSE function
+Then I started with loops. First just for one person in one activity, then for a whole activity and then for the whole raw data set. Therefore, I had to start working with variables within the file path, which I had to define first. Even so I defined the column names. As loop function I used the for-loop
+```{r code array, echo=TRUE, eval=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=80)}
+# This code is not part of the final code script - as it was just an intermediate step
+#Label for columns:
+ColNames <- c("T_xacc", "T_yacc", "T_zacc", "T_xgyro", "T_ygyro", "T_zgyro", "T_xmag", "T_ymag", "T_zmag",
+              "RA_xacc", "RA_yacc", "RA_zacc", "RA_xgyro", "RA_ygyro", "RA_zgyro", "RA_xmag", "RA_ymag", "RA_zmag",
+              "LA_xacc", "LA_yacc", "LA_zacc", "LA_xgyro", "LA_ygyro", "LA_zgyro", "LA_xmag", "LA_ymag", "LA_zmag",
+              "RL_xacc", "RL_yacc", "RL_zacc", "RL_xgyro", "RL_ygyro", "RL_zgyro", "RL_xmag", "RL_ymag", "RL_zmag",
+              "LL_xacc", "LL_yacc", "LL_zacc", "LL_xgyro", "LL_ygyro", "LL_zgyro", "LL_xmag", "LL_ymag", "LL_zmag")
 
-With the `createDataPartition` function we build us two datasets out of the edx1 dataset. One is the edx_train set which we will use to train/build our algorithm. The other is edx_test against which we will test the prediction capabilities of our algorithm throughout the different steps. 
+# Define the variables for the loop:
+activityNames <- c("a01","a02", "a03", "a04", "a05", "a06", "a07", "a08", "a09", "a10", "a11", "a12", "a13", "a14", "a15", 
+                 "a16", "a17", "a18", "a19")
+personNumber <- c("p1","p2","p3","p4","p5","p6","p7","p8")
+fileNames <- sprintf("%02d",seq(1:60))
 
-```{r building datasets, include=FALSE}
-#Split edx1 dataset in a edx_train and edx_test set - use 15% of data for test set
-set.seed(15, sample.kind="Rounding")
-# if using R 3.5 or earlier, use `set.seed(1)` instead
-test_index <- createDataPartition(y = edx1$rating, times = 1, p = 0.15, list = FALSE)
-edx_train <- edx1[-test_index,]
-temp <- edx1[test_index,]
+#Build the loops:
+RawData_list <- vector("list",1) #build an empty list to be filled in the loops
 
-# Make sure userId and movieId in edx_test set are also in edx_train set
-edx_test <- temp %>% 
-  semi_join(edx_train, by = "movieId") %>%
-  semi_join(edx_train, by = "userId")
+for(z in activityNames){ #Loop for the activities
+  
+  
+  for(y in personNumber){ #Loop for the person
+  
+    for(x in fileNames){ #Loop for the files; first file has to be treated differently therefore the if-else-statement
+      if(exists("a")==FALSE){ 
+             file1 <- paste0("C:/Users/XXX/XXX/Projects/R/TempRohDaten/data/",z,"/p1/s01.txt")
+             a <- as.matrix(read_delim(file1, delim = ",", col_names = ColNames))} 
+      else{
+      file <- paste0("C:/Users/XXX/XXX/Projects/R/TempRohDaten/data/",z,paste0("/",y,paste0("/s",x,".txt")))
+      a <- as.matrix(cbind(a, read_delim(file, delim = ",", col_names = ColNames)))
+      a}
+    }
+  }
+  RawData_list[[z]] <- a
+  rm(a)
+}
 
-# Add rows removed from edx_test set back into edx_train set
-removed <- anti_join(temp, edx_test)
-edx_train <- rbind(edx_train, removed)
-
-#remove unnessecary objects
-rm(test_index, temp, removed, edx1)
+RawData_array <- abind(RawData_list,rev.along = 0)
 ```
   
-Following we look at the dimensions of the two datasets - we will see that edx_train set consists of about 85% of the original edx1 dataset and edx_test of 15% accordingly:  
+Already while I was building up this solution, I realised, that this will not be the solution, I will use for my code. Thus, because it seems not to be efficient to load everything in a R-object first and then transform it into a new dataset with generating the feature-set. But nevertheless, I pushed this approach forward to a working solution as I was convinced that at least the principal "philosophy" of the loops and the logic behind I will be able to reuse also in an adapted approach.
+So, my new goal was to combine the feature building- with the data loading process. But before we can start looking at this code, we first must discuss the feature set. To define a meaningful feature-set I oriented myself at the work of Altun/Barshan/Tuncel.They suggested the following metrics:
 
-```{r dim datasets, echo=TRUE}
-dim(edx_train)
-dim(edx_test)
+* Minimal value per raw data column/sensor data-axis
+* Maximal value per raw data column/sensor data-axis
+* Mean per raw data column/sensor data-axis
+* Variance per raw data column/sensor data-axis
+* Skewness per raws data column/sensor data-axis
+* Kurtosis per raw data column/sensor data-axis
+* Discrete Fourier Transformation per raw data column/sensor data-axis
+* Autocorrelation per raw data column/sensor data-axis
+
+After analysing these different parameters I decided to include all of them in my work too. This mainly because of two reasons: First this set seems reasonable to me as it covers different perspectives on the raw dataset - from metrics which help to explain the data distribution (Minimum, Maximum, Mean, Variance, Skewness and Kurtosis) to metrics which look at the data as a time series (Discrete Fourier Transformation and Autocorrelation). My credo was: As more different perspectives we get on our input data, as higher are chances that we find unique patterns per activity. Second Altur/Barshan/Tuncel achieved particularly good results with this feature set (high accuracies), so just out of a practical reason there is no need for change...
+While most of the above listed features are straight forward, we nevertheless have to discuss Discrete Fourier Transform and Autocorrelation in more depth.
+  
+*Discrete Fourier Transform (DFT)*
+  
+I did not really know DFT before. Fast it got clear that this is a big topic with lots of domains where it gets applicated but also quite a complex topic. Thanks to the first lessons of an online course from Mike X Cohen I could build up enough understanding to fulfil the tasks needed for this analysis[^5]. Neverthless, I waive explaining the DFT concept in this report as this is a huge topic for itself and there are experts out there which are by far better qualified to do so. But we must discuss what of the DFT results we want to include in the feature-set. With DFT, or better said FFT (Fast Fourier Transform) as this is the formula we apply, we get again 125 values back per raw data column. So, if we would use all of those values our feature-set would "explode". Therefore Altun/Barshan/Tuncel suggested to use only the top 5 magnitude peaks and its corresponding frequencies per sensor axis (columns in the raw data files) - this would add $5*45*2=450$ feature columns (225 for the magnitude peaks and 225 for the corresponding frequencies). After some testing with replacing the corresponding frequency with the corresponding phases (angles) instead, I then decided to follow again their suggestion. The reasoning behind is again very much "hands on": I have trained the models with both options and I just got the better results...
+Two things I was not so sure about how Altun/Barshan/Tuncel treated this topic in their study:
+
+* First, I just used half of the results per columns as the second half is like the mirror image of the first. Which means that I used the values from frequency 0 till the Nyquist frequency of 12.5Hz. This mentioned symmetry we can see for example here:
+
+```{r Load data and define variables}
+#Prepare ColNames and the variables to extract the files (activites, person, files)
+ColNames <- c("T_xacc", "T_yacc", "T_zacc", "T_xgyro", "T_ygyro", "T_zgyro", "T_xmag", "T_ymag", "T_zmag",
+              "RA_xacc", "RA_yacc", "RA_zacc", "RA_xgyro", "RA_ygyro", "RA_zgyro", "RA_xmag", "RA_ymag", "RA_zmag",
+              "LA_xacc", "LA_yacc", "LA_zacc", "LA_xgyro", "LA_ygyro", "LA_zgyro", "LA_xmag", "LA_ymag", "LA_zmag",
+              "RL_xacc", "RL_yacc", "RL_zacc", "RL_xgyro", "RL_ygyro", "RL_zgyro", "RL_xmag", "RL_ymag", "RL_zmag",
+              "LL_xacc", "LL_yacc", "LL_zacc", "LL_xgyro", "LL_ygyro", "LL_zgyro", "LL_xmag", "LL_ymag", "LL_zmag")
+
+#19 folders for the 19 activities:
+activityNames <- c("a01","a02", "a03", "a04", "a05", "a06", "a07", "a08", "a09", "a10", "a11", "a12", "a13", "a14", "a15", 
+                   "a16", "a17", "a18", "a19")
+
+#8 person folders in each activity folder:
+personNumber <- c("p1","p2","p3","p4","p5","p6","p7","p8")
+
+#60 file names in each person folder:
+fileNames <- sprintf("%02d",seq(1:60)) # gives me all numbers as 2 digits so that 1, 2, ... is "01", "02" etc
+
+#Download the raw data
+td <- tempdir()
+tf = tempfile(tmpdir=td, fileext=".zip")
+download.file("https://publicdatarfu.blob.core.windows.net/publicdatarfucontainer/data.zip", tf)
+unzip(tf, exdir=td)
+#I had "\\" as separater on the path which did not work on my windows system, to correct this I found the
+#following correction option, which I hope will solve in a way that my code is also running on a non windows
+#system without any problems. In worst case please adjust the separaters in fpath manually...
+fpath <- normalizePath(td, winslash = "/", mustWork = NA)
+
+# DFT analysis for a signle file:
+filef <- paste0(fpath,"/data/a10/p1/s01.txt")
+ff1 <- as.matrix(read_delim(filef, delim = ",", col_names = ColNames)) #ff2 --> Walking
+filef <- paste0(fpath,"/data/a19/p1/s01.txt")
+ff2 <- as.matrix(read_delim(filef, delim = ",", col_names = ColNames)) #ff2 --> Basketball
+```
+
+```{r Symmetry of Magnitudes, fig.cap="Visualisation of the symmetry of the magnitude values (without value for Freq 0)"}
+# Show symmetry in magnitude (without DC value)
+ff1_DFT <- Mod(fft(ff1[,28]))
+ff1_DFT[2:125] <- ff1_DFT[2:125]*2 #magnitudes have to be doubled (beside value for frequency 0)
+Freq <- seq(1,25,length=124)
+plot(Freq,ff1_DFT[2:125], main="Activity 'Walking': Acceleration sensor, x-axis, right leg", xlab = "Frequency", ylab= "Magnitude", type = "l", cex.main=.9)
+abline(v=13, col="red")
+```
+
+* Second, I was not 100% sure what to do with the DC value (so the Magnitude at Frequency 0) as often this value was much higher than the other values and looked like an "outlier". In addition, we have already the column mean in our feature-set to which the DC is highly correlated (in fact it is the sum of the column values of the raw data). So I run my script with and without the DC value and to my surprise the DC value seems to add valuable information for the models, as the Accuracies were clearly higher with the DC...Therefore, the for this report used feature-set includes it. To visualize the effect of DC I show the same graph as before but this time including frequency 0:
+
+```{r Effect of DC, fig.cap="Visualise the impact on the y-axis scale because of the DC value", fig.align='center'}
+#Show data when DC is included:
+Freq <- seq(0,25,length=125)
+plot(Freq,ff1_DFT[1:125], main="Activity 'Walking': Acceleration sensor, x-axis, right leg", xlab = "Frequency", ylab= "Magnitude", type = "l", cex.main=0.9, cex.lab=0.9)
+abline(v=12.5, col="red")
 ```
   
-Last but not least we define the RMSE function before we can start building the algorithm:  
 
-```{r RMSE function, echo=TRUE}
+*Autocorrelation*
+  
+Like with DFT we must decide which values of an autocorrelation analysis we want to include in our feature-set. For this we start with two examples of autocorrelation with a lag of 125:
+```{r Autocorrelation example 1 - lag 125, fig.cap="Example of autocorrelation with lag = 125 (Activity: Walking)", , fig.align='center'}
+#Get the Autocorrrelation for lag 125 (corresponds to the full 5 sek)
+Autoc1 <- acf(ff1[,28], lag.max = 125, main="Walking")
+```
+  
+```{r Autocorrelation example 2 - lag 125, fig.cap="Example of autocorrelation with lag = 125 (Activity: Basketball)", , fig.align='center'}
+#Get the Autocorrrelation for lag 125 (corresponds to the full 5 sek)
+Autoc1 <- acf(ff2[,19], lag.max = 125, main="Basketball")
+```
+  
+After looking at some of these examples I got to the following conclusions:
 
-RMSE <- function(predicted_ratings, true_ratings){
-  sqrt(mean((true_ratings - predicted_ratings)^2))
+* lag = 1 is the "comparison" with itself so this value is always 1 and has no additional value
+* Beside this the first 5 lags seem always to have the highest correlations
+* Otherwise there is no 100% clear pattern to take into consideration
+
+Based on these findings I deviated a bit from the selection of Altun/Barshan/Tuncel. Nevertheless I stuck to their suggestion to include 11 values per raw data column - my selection was the following: Values of lag 2 to 5, values of lag 23 to 26 (around 1 second after initial signal), values of lag 48:50 (around 2 seconds after initial signal) 
+  
+So, we have our feature-set defined and it consists out of **1215 features**: 6 times 45 (min, max, mean, var, skew., kurt.) + 2 times 225 (DFT mag., DFT freq) + 11*45 (Autocor.). Just for completeness: Altun/Barshan/Tuncel used "just" 1170 features at the end, they seemed to have skipped one variable out of the list of the first six features. But as this has no specific relevance for my project, I did not investigate further.
+  
+Now we can go back to our code. As stated above the new plan is to involve the "feature calculation" in the loading process. Therefore, I created a function "Features" which does all the calculations and then involve it in the if-loop process showed above. Here the code of this function:
+
+```{r Feature function, echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+Features <- function(f){
+  # Maximum/Minimum, mean, variance, skewness, kurtosis per column
+  f_min <- apply(f,2,min)
+  f_max <- apply(f,2,max)
+  f_mean <- colMeans(f)
+  f_var <- colVars(f)
+  f_skew <- apply(f,2,skewness)
+  f_kurt <- apply(f,2,kurtosis)
+  
+  #----------Discrete Fourier Transformation (with fast fourier transform)---------
+  #Do Fast Fourier transformation (fft)
+  f_DFT_temp <- apply(f,2,fft)
+  
+  #Get the peaks and the phases
+  f_DFT_Mod_temp <- apply(f_DFT_temp,2,Mod)
+  
+  #Choose just half of the values (seconde half is like a mirror of the first)
+  f_DFT_Mod_temp_Half <- f_DFT_Mod_temp[1:(length(f_DFT_Mod_temp[,1])/2+1),]
+  
+  #Double all values beside for Frequency 0 (first index value)
+  f_DFT_Mod_temp_Half[2:(length(f_DFT_Mod_temp[,1])/2),]<- 
+    f_DFT_Mod_temp_Half[2:(length(f_DFT_Mod_temp[,1])/2),]*2
+  
+  #Calculate Frequency:
+  Freq <- seq(0,(25/2),length=length(f_DFT_Mod_temp[,1])/2+1)
+  
+  #Select the top 5 Peaks
+  f_DFT_Mod <- apply(f_DFT_Mod_temp_Half,2,function(x){
+    head(sort(x,decreasing = TRUE),5)
+  })
+  
+  #Find corresponding Frequency
+  for(i in 1:45) {
+    
+    if(exists("Index_vec")==FALSE){
+      Index_vec <- match(f_DFT_Mod[,i],f_DFT_Mod_temp_Half[,i])}
+    else{
+      Index_vec <- c(Index_vec,match(f_DFT_Mod[,i],f_DFT_Mod_temp_Half[,i]))}
+  }
+  
+  Index_matrix <- matrix(Index_vec, 5, 45)
+  
+  for(i in 1:45){
+    if(exists("f_DFT_Freq")==FALSE){
+      f_DFT_Freq <- Freq[Index_matrix[,i]]}
+    else{
+      f_DFT_Freq <- c(f_DFT_Freq,Freq[Index_matrix[,i]])}
+  }
+  #-------------------------------------- Autocorrelation -------------------
+  #Get the Autocorrrelation for lag 50 (corresponds to 2 sek)
+  f_Autoc_temp <- apply(f,2,function(x){
+    acf(x, lag.max = 50, plot=FALSE)
+  })
+  
+  #Get 11 values out of the 50 per "column" (here more "list section") - 
+  #First value always =1 so not a lot of info from this, then I chose 4 correlation values
+  #of the beginning, 4 values around 1 sek distance and 3 values at the end (=around 2sek difference)
+  for(i in 1:45){
+    if(exists("f_Autoc")==FALSE){
+      f_Autoc <- f_Autoc_temp[[i]]$acf[c(2:5,23:26,48:50)]}
+    else{
+      f_Autoc <- c(f_Autoc,f_Autoc_temp[[i]]$acf[c(2:5,23:26,48:50)])}
+  }
+  #---------------------Building the Feature Vector ---------------------------------
+  Feature_Vector <<- c(f_min,f_max,f_mean,f_var,f_skew,f_kurt,
+                       as.vector(f_DFT_Mod),f_DFT_Freq, f_Autoc) #global Variable "<<-"
 }
 ```
   
-### Building the algorithm step by step
+As hoped, I could reuse most of the logic, I used for my initial data loading process and it was not such a big thing to include the Features function. In addition, there was one other step I skipped right away and this was the conversion into an array as this made no sense at all. The new "strategy" was to load everything in a list, get one long vector out of it and at the very end of the loading/conversion process transform this vector in a matrix where the columns represent the 1215 features.
+After being happy to have solved this topic I faced another issue with this whole process: It takes more than 40minutes to run it and this with the raw data unziped and locally stored...I knew that there has to be room for improvement concerning this problem. Nevertheless, as I was curious about the results I get out of the algorithms, I accepted this issue for the moment and proceeded like this (to be concrete I stored the generated Feature-Matrix locally and usually started the script from there). It was only after seeing the results that I came back to this challenge. But for the sake of the structure of this report I describe the final step of this loading/conversion process now.
+To come directly to the point: I exchanged the for-loop function by the `lapply()` function and with some slight adjustments the whole process needed less than 10minutes. 
+  
+This changed again when I switched the process from locally stored, unziped raw data to ziped, online data (process runs for over 45minutes). This because I first used the logic of the code we got as starting point for the "Movielens" challenge. As I have not just one file but a whole dataset and by using this template in every loop the new file had first to be unziped it was a very inefficient process. So, the solution was to first define a temporary directory where I can unzip the whole dataset for further use. Like this the whole process went down to just over 12 minutes again. 
+One topic I want to bring up here, as this could be a reason why my code is not running well on another system: I stumbled over a problem with the path of the temporary directory - I found a solution for it on my Windows-System but I am not 100% sure if this correction will now prevent my code from running properly on a non-Windows system...
+All in all, the data download and unzip code look like this:
 
-The algorithm will follow this logic: $Y_{i,u,c} = \mu +b_{i}+b_{u}+b_{c}+\epsilon_{i,u,c}$. We will build the algorithm in a step by step approach so we can compare results (RMSE against edx_test) after every step.  
-#### step 1: Starting with "mu"
-To start with we just predict the ratings by setting them on the rating average from edx_train $Y = \mu$:  
-
-```{r calculate mu, echo=TRUE}
-#Calculating mu 
-mu <- mean(edx_train$rating)
-mu
+```{r show code for online data download, eval=FALSE, echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=80)}
+#Download the raw data
+td <- tempdir()
+tf = tempfile(tmpdir=td, fileext=".zip")
+download.file("https://publicdatarfu.blob.core.windows.net/publicdatarfucontainer/data.zip", tf)
+unzip(tf, exdir=td)
+#I had "\\" as separater on the path which did not work on my windows system, to correct this I found the
+#following correction option, which I hope will solve it in a way that my code is also running on a non windows
+#system without any problems. In worst case please adjust the separaters in fpath manually...
+fpath <- normalizePath(td, winslash = "/", mustWork = NA)
 ```
   
-This results in the following RMSE value:  
-
-```{r 1st RMSE table, include=TRUE}
-#Calculate RMSE for 1st intermediate result based on mu:
-Mu_rating <- edx_test %>% 
-  mutate(pred = mu) %>%
-  .$pred
-
-RMSE_InterOne <- RMSE(Mu_rating, edx_test$rating)
-
-#Visualize the RMSE result:
-rmse_results <- data_frame(method="Mu", RMSE = RMSE_InterOne, Improvement = 0, )
-rmse_results %>% knitr::kable()
-```
- 
-#### Step 2: Adding b~i~
-As a next step we add the movie bias (b~i~) to the algorithm. For this we take the average of each movie "corrected" by mu:  
-
-```{r calculate bi, echo=TRUE}
-bi_avg <- edx_train %>% 
-  group_by(movieId) %>%
-  summarize(b_i = mean(rating - mu), n = n())
-```
+And the final code for the data loading/conversion process to get the Feature Vector is the following:
+```{r data loading and conversing process, echo=TRUE, tidy=TRUE, tidy.opts=list(width.cutoff=80)}
+#Loop for the 19 activities
+FV2 <- lapply(z <- activityNames, function(z){
   
-Including b~i~ RMSE gets the following value:  
-
-```{r 2nd RMSE table, include=TRUE}
-#Calculate RMSE for 2nd intermediate result:
-MuBi_rating <- edx_test %>% 
-  left_join(bi_avg, by='movieId') %>% 
-  mutate(pred = mu + b_i) %>%
-  .$pred
-
-RMSE_InterTwo <- RMSE(MuBi_rating, edx_test$rating)
-
-#Improvement:
-Imp <- RMSE_InterOne-RMSE_InterTwo
-
-#Visualize the RMSE result:
-rmse_results <- bind_rows(rmse_results,
-                          data_frame(method="Mu, b_i",
-                                     RMSE = RMSE_InterTwo, Improvement = Imp ))
-rmse_results %>% knitr::kable()
-```
-  
-As we can see there is a substantial improvement of `r percent(Imp/RMSE_InterOne)` in the RMSE so the bias per movie seems to be somehow big. It seems by some movies people were +/- in agreement to give them a rating clearly above or below the overall rating average - as if a movie got a controversial rating (equally good and bad ratings) the deduction of mu would have "corrected" the effect.  
-  
-#### Step 3: Adding b~u~
-
-Now we add the User bias (b~u~):  
-
-```{r calculate bu, echo=TRUE}
-bu_avg <- edx_train %>% 
-  left_join(bi_avg, by='movieId') %>%
-  group_by(userId) %>%
-  summarize(b_u = mean(rating - mu - b_i))
-```
-
-```{r 3rd RMSE table, include=TRUE}
-#Calculate RMSE for 3rd intermediate result:
-MuBiBu_rating <- edx_test %>% 
-  left_join(bi_avg, by='movieId') %>% 
-  left_join(bu_avg, by='userId') %>%
-  mutate(pred = mu + b_i + b_u) %>%
-  .$pred
-
-RMSE_InterThree <- RMSE(MuBiBu_rating, edx_test$rating)
-
-#Improvement:
-Imp <- RMSE_InterTwo-RMSE_InterThree
-
-#Visualize the RMSE result:
-rmse_results <- bind_rows(rmse_results,
-                          data_frame(method="Mu, b_i, b_u",
-                                     RMSE = RMSE_InterThree, Improvement = Imp ))
-rmse_results %>% knitr::kable()
-```
-  
-Also adding b~u~ brought us a step forward. We achieved a further improvement of RMSE value by `r percent(Imp/RMSE_InterTwo)` (against edx_test dataset).  
-  
-#### Step 4: Adding regularization
-
-As a next step we look at regularization. So, we want to penalize large deviations of the average caused from small sample sizes. But before doing the calculations we want to do a quick analysis of the data to check if such an effect could exist.  
-To do so we want to have a special look at the residuals still bigger than |1| after deducting mu, b~i~ and b~u~:  
-
-```{r show effect of small samples, include=TRUE, fig.cap= "Amount of ratings by movies with residuals > |1|"}
-#prepare train set
-temp <- edx_train %>% 
-  left_join(bi_avg, by="movieId") %>%
-  left_join(bu_avg, by='userId') %>%
-  mutate(residual = rating - (mu+b_i+b_u)) 
-
-#Preparation for later median calc. of total edx_train set:
-Movie_Count <- edx_train %>% dplyr::count(movieId)
-
-#Preparation for later median calc. of dataset with residuals > |1|
-temp_2 <- filter(temp,abs(temp$residual)>1)
-Movie_Count_s <- temp_2 %>% dplyr::count(movieId)
-
-#Visualize the effect of low amount of movie-ratings and high residuals (scales package required)
-temp_3 <- temp_2 %>% group_by(movieId) %>% summarize(n=n(), residual=mean(abs(residual))) %>% 
-  arrange(desc(abs(residual)))
-
-temp_3 %>% ggplot(aes(residual,n)) + 
-  geom_point() + 
-  scale_y_continuous(trans = log2_trans()) + 
-  geom_line(aes(y=median(Movie_Count$n)), color="red") +
-  geom_line(aes(y=median(Movie_Count_s$n)))+
-  ggtitle("Distribution movie ratings (residuals > |1|)") +
-  geom_text(aes(x = 3, y = 40,
-                label = paste("Median of residuals > |1| =",paste(median(Movie_Count_s$n)))))+
-  geom_text(aes(x = 3, y = 140 ,
-                label = paste("Median of total edx_train set =",paste(median(Movie_Count$n))))) +
-  myTheme
-```
-  
-We see that the amount of ratings a movie got with residual still bigger |1| are clearly lower compared to the median of the whole training dataset (red line). Similar we can observe when we sort it by userId instead of movieId. Therefore, it is probably reasonable to do a regularization.  
-First we calculate the optimal choice of lambda.  
-
-```{r calculate lambda, include=TRUE, fig.cap= "RMSE development with differnt lambdas"}
-lambdas <- seq(0, 15, 0.5)
-rmses <- sapply(lambdas, function(lambda){
-  bi_reg <- edx_train %>%
-    group_by(movieId) %>%
-    summarize(b_i_reg = sum(rating - mu)/(n()+lambda))
-  bu_reg <- edx_train %>% 
-    left_join(bi_reg, by="movieId") %>%
-    group_by(userId) %>%
-    summarize(b_u_reg = sum(rating - b_i_reg - mu)/(n()+lambda))
-  predicted_ratings <- 
-    edx_test %>% 
-    left_join(bi_reg, by = "movieId") %>%
-    left_join(bu_reg, by = "userId") %>%
-    mutate(pred = mu + b_i_reg + b_u_reg) %>%
-    .$pred
-  return(RMSE(predicted_ratings, edx_test$rating))
+  #Loop for the 8 person
+  FV1 <- lapply(y <- personNumber, function(y){
+    
+    #Loop for the 60 time-series files
+    FV <- lapply(x <- fileNames, function(x){
+      file <- paste0(fpath,"/data/",z,"/",y,"/s",x,".txt")
+      f <- as.matrix(read_delim(file, delim = ",", col_names = ColNames))
+      if(exists("FV")==FALSE){
+        FV <- vector("list",1)
+        FV[[x]] <- Features(f)} #calling the Feature function
+      else{
+        FV[[x]] <- Features(f)} #calling the Feature function
+    })
+    
+    if(exists("FV1")==FALSE){
+      FV1 <- vector("list",1)
+      FV1[[y]] <- Reduce(c,FV)}
+    else{
+      FV1[[y]] <- Reduce(c,FV)}
+  })
+  if(exists("FV2")==FALSE){
+    FV2 <- vector("list",1)
+    FV2[[z]] <- Reduce(c,FV1)}
+  else{
+    FV2[[z]] <- Reduce(c,FV1)}
 })
 
-qplot(lambdas, rmses)  
-
-lambda <- lambdas[which.min(rmses)]
+Feature_Vector <- Reduce(c,FV2)
 ```
   
-Now we recalculate the movie- and user bias "penalized" with optimal lambda (`r lambda`) - the new variables we will call b~i~_reg and b~u~_reg.  
+And finally this Feature Vector will be transformed into the Feature_Matrix variable. This will then be the R object with which we will go on in the next steps of the script, all the rest we remove. The challenge of this final step was to label all columns and rows correctly. But since it is not so decisive, I renounce the representation of the code in favour of the readability of this report.
+In this sense let us go on to the next chapter which will be a bit a shorter one about building a train- and test dataset out of the Feature_Matrix.
 
-```{r calculate b_i_reg and b_u_reg, echo=TRUE}
-#Calculating b_i_reg based on best lambda value:
-bi_reg_avg <- edx_train %>% 
-  group_by(movieId) %>%
-  summarize(b_i_reg = sum(rating - mu)/(n()+lambda))
+```{r Generating Feature_Matrix}
+#Prepare for the Naming of the columns and rows:
+temp <- rep(ColNames,each=5)
+temp1 <- c(rep(c("DFT_Mag_1_","DFT_Mag_2_","DFT_Mag_3_","DFT_Mag_4_","DFT_Mag_5_"),45))
+temp_Mag <- paste0(temp1,temp)
 
-#Calculating b_u_reg based on best lambda value:
-bu_reg_avg <- edx_train %>% 
-  left_join(bi_reg_avg, by='movieId') %>%
-  group_by(userId) %>%
-  summarize(b_u_reg = sum(rating - b_i_reg - mu)/(n()+lambda))
-```
-  
-If we now generate RMSE based on the regularized biases we get the following values:  
+temp1 <- c(rep(c("DFT_Freq_1_","DFT_Freq_2_","DFT_Freq_3_","DFT_Freq_4_","DFT_Freq_5_"),45))
+temp_Freq <- paste0(temp1,temp)
 
-```{r 4th RMSE table}
-Reg_rating <- edx_test %>% 
-  left_join(bi_reg_avg, by='movieId') %>% 
-  left_join(bu_reg_avg, by='userId') %>%
-  mutate(pred = mu + b_i_reg + b_u_reg) %>%
-  .$pred
+temp <- rep(ColNames,each=11)
+temp1 <- c(rep(c("Atuoc_1_","Atuoc_2_","Atuoc_3_","Atuoc_4_","Atuoc_5_","Atuoc_6_",
+                 "Atuoc_7_","Atuoc_8_","Atuoc_9_","Atuoc_10_","Atuoc_11_"),45))
+temp_Autoc <- paste0(temp1,temp)
 
-RMSE_InterFour <- RMSE(Reg_rating, edx_test$rating)
 
-#Improvement:
-Imp <- RMSE_InterThree-RMSE_InterFour
+DimNames_Col <- c(paste0("min_",ColNames),paste0("max_",ColNames),paste0("mean_",ColNames),paste0("var_",ColNames),
+                  paste0("skew_",ColNames), paste0("kurt_",ColNames),temp_Mag,temp_Freq,temp_Autoc)
 
-#Visualize the RMSE result:
-rmse_results <- bind_rows(rmse_results,
-                          data_frame(method="'Regularized'",
-                                     RMSE = RMSE_InterFour, Improvement = Imp ))
-rmse_results %>% knitr::kable()
-```
-  
-With a further improvement of RMSE score of `r percent(Imp/RMSE_InterThree)` this step did not bring us too much of an additional benefit. But it is also to say that we are at a stage with our algorithm where it gets harder and harder to find further improvements.
 
-#### Step 5: Matrix decomposition
+DimNames_Row <- c(rep("a01", (60*8)),rep("a02", (60*8)),rep("a03", (60*8)),rep("a04", (60*8)),rep("a05", (60*8)),
+                  rep("a06", (60*8)),rep("a07", (60*8)),rep("a08", (60*8)),rep("a09", (60*8)),rep("a10", (60*8)),
+                  rep("a11", (60*8)),rep("a12", (60*8)),rep("a13", (60*8)),rep("a14", (60*8)),rep("a15", (60*8)),
+                  rep("a16", (60*8)),rep("a17", (60*8)),rep("a18", (60*8)),rep("a19", (60*8)))
 
-In this next step we want to try out two different approaches by decomposing the Rating-Matrix.  
+#Generate a Matrix out of the Feature_Vector:
+Feature_Matrix <- matrix(Feature_Vector,9120,1215,byrow = TRUE, dimnames = list(DimNames_Row, DimNames_Col))
 
-1. Add a bias based on PCA. Thanks to this we should be able to consider dependency patterns in between movies and/or users in our algorithm. We call this bias "cluster bias" (b~c~)
-2. With support of SVD we will rebuild the Rating-Matrix in a way that the Rating-Matrix is fully filled out (no empty cells) and then we take the mean of every movie. We will call this bias b~i2~
-
-To anticipate one point already now: The initial idea was to do this in a sequence - so first calculate b~c~, include it in the algorithm and then based on this rebuild the Rating-Matrix and do step 2. But it showed that this does only bring the second-best result. The best result was achieved by just including one of the two new biases (b~c~, b~i2~) - which one we will see at the end of this chapter. 
-  
-##### PCA calculations (add b~c~)
-
-To start with this step, we have to generate the Rating-Matrix. We will do this directly with a capability of the `recommenderlab` package and use the function `as(<data.frame>,realRatingMatrix)`. This function is converting a data.frame directly in a so called "real-value rating matrix", which is not only converting the data into a matrix but it will store it in a sparse format too (NA values will not be stored but zeros will). With this we can take into consideration too that not all movies got rated by all users and the matrix would therefore have a lot of "blanks" (as we found out in chapter "Understand, wrangle and analyse edx dataset").  
-
-```{r Converet to realRatingMatrix, echo=TRUE}
-#Calculate predictions for edx_train set:
-Reg_rating_train <- edx_train %>% 
-  left_join(bi_reg_avg, by='movieId') %>% 
-  left_join(bu_reg_avg, by='userId') %>%
-  mutate(pred = b_i_reg + b_u_reg) %>%
-  .$pred
-
-#Establish Rating-Matrix with Recommenderlab function - first deduct rating-predictions 
-#from real ratings so only the residuals remain (not standardized yet):
-PreMatrix_edx_train <- edx_train %>% 
-  select(userId, movieId, rating) %>% 
-  mutate(rating = rating - Reg_rating_train)
-rRM <- as(PreMatrix_edx_train, "realRatingMatrix")
-getRatingMatrix(rRM[1:10,1:10])
-```
-  
-Unfortunately it was not possible to directly do PCA with the `prcomp()` function - it took extremely lot of time (over 12hours - yes, tested it...) and it generated huge datasets. By the way same applied for `svd()`.
-So we will do all next step based on svd methodology and svd calculation cone by `recommender()` function from `recommenderlab`. To do so we first check the default settings of the function parameters:  
-
-```{r Check model parameters}
-#Store provided methods within recommender function in a variable:
-recommender_models <- recommenderRegistry$get_entries(dataType = "realRatingMatrix")
-
-#Get parameter details from SVD method:
-recommender_models$SVD_realRatingMatrix$parameter
-```
-  
-These defaults settings should be good enough for us, so we generate singular value decomposition now:  
-```{r generate SVD, echo=TRUE}
-r_rRM <- Recommender(rRM, method = "SVD")
-str(r_rRM@model$svd)
-```
-  
-As a next step follows some math to reconstruct PCA elements. It is to say that the loadings-Matrix (in `prcomp()` function called "rotation") we do already have as it is the same as Matrix "V" from SVD:  
-
-```{r calculate PCA components, echo=TRUE}
-# 1. Step: Calculate covariance matrix of rRM via SDV parameters V and D:
-cov_M <- sweep(r_rRM@model$svd$v, 2, r_rRM@model$svd$d^2, FUN="*") %*% 
-  t(r_rRM@model$svd$v)/(ncol(rRM)-1)
-
-# 2. step: Calculate Variation (sdev^2 value from prcomp() function):
-eig_value <- sapply(i <- 1:ncol(r_rRM@model$svd$v),function(i) {
-  (cov_M[i,]%*%r_rRM@model$svd$v[,i])/
-    r_rRM@model$svd$v[i,i]})
-sdev_calc <- sqrt(eig_value)
-
-# 3. step: Calculate scores (x value from prcomp() function):
-pcaScores <- getRatingMatrix(rRM) %*% r_rRM@model$svd$v
-```
-  
-Now let's have a look at the variation parameters ($sdev\_calc^2$) to see what the influence on variation each principal component (PC) has:  
-
-```{r visualize variation, fig.cap= "Variation per PC"}
-barplot(eig_value/sum(eig_value), xlab = "PC", ylab = "Percent of total Variance explained", cex.names=0.8, ylim = c(0,1))
-eig_value
-```
-  
-As we see first PC is "dominating" clearly and so with just one PC we are capable to explain almost the whole variation. Therefore we will just consider the first column each of our loading- and scores matrix and only the first value of our variation vector to calculate b~c~ ($b_c = p*q$, while p= user effect and q = principal component):  
-
-```{r calculate b_c, echo=TRUE}
-b_c <- (pcaScores[,1]) %*% t(r_rRM@model$svd$v[,1]*eig_value[1])
-b_c <- colMeans(b_c)
-```
-  
-Now we add b~c~ in the same approach to the algorithm as we have done it before and get the following RMSE table:  
-
-```{r 5th RMSE table}
-#Build a data frame so that b_c can be added to edx_test set later: 
-temp_factorization1 <- edx_train %>% group_by(movieId) %>% summarize(movieAverage = mean(rating)) %>% 
-  cbind(b_c)
-
-#Calculate RMSE for 5th intermediate result:
-Fac_rating1 <- edx_test %>% 
-  left_join(bi_reg_avg, by='movieId') %>%
-  left_join(bu_reg_avg, by='userId') %>%
-  left_join(temp_factorization1, by='movieId') %>%
-  mutate(pred = mu + b_i_reg + b_u_reg + b_c) %>%
-  .$pred
-
-RMSE_InterFive <- RMSE(Fac_rating1, edx_test$rating)
-
-#Improvement compared to after Regularization:
-Imp1 <- RMSE_InterFour-RMSE_InterFive
-
-#Visualize the RMSE result:
-rmse_results <- bind_rows(rmse_results,
-                          tibble(method="'PCA'",
-                                     RMSE = RMSE_InterFive, Improvement = Imp1))
-                        
-rmse_results %>% knitr::kable()
-```
-  
-##### SVD calculations (add b~i2~)
-First, we will again have a look how much of variability is explained with each factor. In SVD we will use vector "D" for this. And again, the picture we gained from the PCA analysis that the first factor is explaining almost all the variation gets confirmed:  
-
-```{r visualize variability, fig.cap= "'cumsum' of factor's variability"}
-#How much variability is explained with first factor:
-FirstFactor <- sum(r_rRM@model$svd$d[1]^2)/sum((r_rRM@model$svd$d)^2)
-
-#Visualize how cumsum of each factor explains variability:
-Variability <- cumsum(r_rRM@model$svd$d^2)/sum((r_rRM@model$svd$d)^2)
-plot(c(0:10),append(0,Variability), type="b", xlab = "Factor", ylab="explained Variability",
-     ylim = c(0,1), cex.lab=.8)
-text(1,0.9, paste("Explained variability \nwith first factor",round(FirstFactor,3)), cex=.6)
-```
-  
-Now we will reconstruct the Rating-Matrix and generate our next bias (b~i2~). To reconstruct the Rating-Matrix we will use the following formula:      
-$$ Y = UDV^T $$
-  
-```{r calculate new Rating-Matrix, echo=TRUE}
-#Calculate matrix Y with only with u,d,v of first factor:
-resid <- with(r_rRM@model$svd,(u[, 1, drop=FALSE]*d[1]) %*% t(v[, 1, drop=FALSE]))
-```
-  
-As we can see in the new Rating-Matrix there are no blanks left - in contrast to the initial Rating-Matrix shown above.  
-
-```{r Show new Rating-Matrix}
-resid[1:10, 1:5]
+#remove unnessecary objects
+rm(activityNames,personNumber,fileNames,temp,temp1,temp_Freq,temp_Mag,temp_Autoc,FV2,Feature_Vector)
 ```
 
-Next step is to generate b~i2~ by calculating the column means from our new Rating-Matrix:  
+### Train- and Test dataset
+To get to a train- and test dataset we use the `createDataPartition` function from the caret package. I set the parameters in a way that 85% of the Feature_Matrix shall be in the Feature_train- and the remaining 15% in the Feature_test dataset.
+```{r define train and test dataset}
+#Split Feature dataset in a Feature_train and Feature_test set - use 15% of data for test set
+set.seed(2020) #so that I have reproducable results
 
-```{r calculate b_i2, echo=TRUE}
-b_i2 <- colMeans(resid)
-```
+test_index <- createDataPartition(y = rownames(Feature_Matrix), times = 1, p = 0.15, list = FALSE)
+Feature_train <- Feature_Matrix[-test_index,]
+Feature_test <- Feature_Matrix[test_index,]
 
-So, we have everything to calculate RMSE with b~i2~ added to the algorithm INSTEAD b~c~. Here we see the table with the final results (*Attention:* Improvement of "Full rating matrix" is measured against "Regularized" and not against "PCA"):  
-
-```{r 6th RMSE table}
-#Build a data frame so that b_i2 can be added to edx_test set later: 
-temp_factorization2 <- edx_train %>% group_by(movieId) %>% summarize(movieAverage = mean(rating)) %>% 
-  cbind(b_i2)
-
-#Calculate RMSE for 5th intermediate result based on factorization: 
-
-Fac_rating2 <- edx_test %>% 
-  left_join(bi_reg_avg, by='movieId') %>%
-  left_join(bu_reg_avg, by='userId') %>%
-  left_join(temp_factorization2, by='movieId') %>%
-  mutate(pred = mu + b_i_reg + b_u_reg + b_i2) %>%
-  .$pred
-
-RMSE_InterSix <- RMSE(Fac_rating2, edx_test$rating)
-
-#Improvement compared to after Regularization:
-Imp2 <- RMSE_InterFour-RMSE_InterSix 
-
-#Visualize the RMSE result:
-rmse_results <- bind_rows(rmse_results,
-                          tibble(method= "'Full rating matrix'",
-                                     RMSE = RMSE_InterSix, Improvement = Imp2))
-                        
-rmse_results %>% knitr::kable()
+#remove unnessecary object
+rm(test_index)
 ```
   
-As we can see the better result we get when we add b~i2~ into our formula and therefore our final algorithm looks like this: $$Y_{i,u,c} = \mu +b_{i}+b_{u}+b_{i2}+\epsilon_{i,u,i2}$$
-
-## Results
-It is time to apply the generated algorithm to the validation set and check the results we get from it:  
-
-```{r final result, echo=TRUE}
-#Final step: Test the Algorithm against validation set:
-Overall_rating <- validation %>% 
-  left_join(bi_reg_avg, by='movieId') %>% 
-  left_join(bu_reg_avg, by='userId') %>%
-  left_join(temp_factorization2, by='movieId') %>%
-  mutate(pred = mu + b_i_reg + b_u_reg + b_i2) %>%
-  .$pred
-
-RMSE_Overall <- RMSE(Overall_rating, validation$rating)
-
-#Visualize the RMSE result:
-rmse_final <- tibble(RMSE_Validation = RMSE_Overall)
-rmse_final %>% knitr::kable()
+With the following control code we can check if the split got executed as expected:
+```{r show dimensions of train- and test dataset, echo=TRUE}
+#show dimensions of Matrix and ratio between train and test set
+dim(Feature_train)
+dim(Feature_test)
+length(Feature_train[,1])/length(Feature_Matrix[,1])
 ```
   
-With the final RMSE score of **`r RMSE_Overall`** we reached the goal to get a value below the expected 0.86490.  
-Performance-wise it is certainly a result one can work (or at least start) with. But we also have to remain realistic then an average deviation of the effective rating of about 0.864 points is in our case almost as large as one "full rating category" (e.g. rating categories: very poor, poor, average, good, very good) - in today's time where people are already "spoiled" with quite exact recommendation predictions this would probably not be enough.  
+As we can see the Feature_train dataset has the dimensions/ratio which we were expecting, therefore we go on by examining the dataset more in depth.
   
-## Personal conclusion
-The chosen approach delivered the results we were looking for, which certainly is positive. Nevertheless the last step of the algorithm building process was not super satisfying as the PCA decomposition did not brought the results I had anticipated and therefore the efforts I put in it did not really pay off - at least I have now a slight idea about PCA and SVD.... But probably this is also part of a data scientist life: Sometimes you have to fail to get to the next level.
-In general it is to say that with every additional bias we added to the algorithm it got tougher and tougher to generate additional benefits concerning the RMSE score. For me this is a hint that the chosen approach has its limitations somewhere around the RMSE score we achieved now. And if we want to bring it to a next level (let's say something like RMSE < 0.6) we would have to go for another approach.  
-As potential future work I would see three different things I would like to try out:  
+### Analyse train dataset and do feature reduction
+We start with some basic controls by looking at the structure of Feature_train/-_test datasets and if there is any NA value in it:
+```{r structure and NA test, echo=TRUE}
+#structure of Feature_train
+str(Feature_train)
+str(Feature_test)
 
-1. I would dig deeper into the last step of my algorithm building process - perhaps also by talking to a subject matter expert in SVD and PCA topics - to see if there is not more, I could get from it
-2. It would be interesting to do this exercise once on a powerful "virtual machine" of a cloud solution (AWS, Azure...). With this extra compute- and memory power we could probably test out predefined algorithms like logistic regression or gradient boosting
-3. Even though I do not have a clue about it now: It would be interesting to see the achievable results by applying deep learning algorithms - at least there should be enough data to give it a try with the huge MovieLens dataset
+#Are there any NA values?
+sum(is.na(Feature_train))
+sum(is.na(Feature_test))
+```
+This first glance shows that column- and row names seem to be correct so the labelling worked out well. Even so there are no NA values and as we have seen in the previous chapter the dataset's dimensions are as expected too, so it looks like the whole data loading and data splitting process went well.
+  
+As a next step we will have a look at the data of the Feature_train dataset. We start with a comparison of the three different activities "sitting" (a01), "walking" (a10) and "basketball" (a19). As there are too many features I reduced it to a selection of the following six features: Magnitude 1 (DC value) of the x,y,z-axis, of the acceleration sensor of the right leg (RL) sensor unit and the same selection for the variance. It will certainly be interesting to see the differences between the different activities:
+```{r Comparison train data, fig.cap="Comparison of activity sitting (a01), walking (a10), and basketball (a19) by selected features", fig.align='center'}
+# General comment: in the script I wanted to be able to play around with different values which would not be necessary for 
+# this report but as I wanted to have script and report +/- identical I did not change anythinng...
+#
+#-----------------------------Comparison of activities sitting, walking, basketball ------------------ 
+#-----------------------------based on acc. and gyro. sensors at LA and RL ---------------------------
+#next steps will generate a vector with all the indexes for LA and RL for all axis of acc. and gyro sensor
+#So that we can then "play around" with these data to compare them (it is easier like this as otherwise we
+#always have to do the math at which position the searched values are...):
+#
+#left arm / acc x-axis
+x1 <- c(19,64,109,154,199,244,361,586,919) #value 361 for Mag_1... value 362 for Mag_2
+#right leg / acc x-axis
+x2 <- c(28,73,118,163,208,253,(361+45),(586+45),(919+99)) #value 361 for Mag_1... value 362 for Mag_2
+#left arm + right leg / acc x-axis
+x <- sort(c(x1,x2))
+x3 <- x
+x4 <- x
+x5 <- x
+x6 <- x
+x7 <- x
+#left arm + right leg / acc y-axis
+x3[1:12] <- x3[1:12]+1
+x3[13:16] <- x3[13:16]+5
+x3[17:18] <- x3[17:18]+11
+#left arm + right leg / acc z-axis
+x4[1:12] <- x4[1:12]+2
+x4[13:16] <- x4[13:16]+10
+x4[17:18] <- x4[17:18]+22
+#left arm + right leg / gyro x-axis
+x5[1:12] <- x5[1:12]+3
+x5[13:16] <- x5[13:16]+15
+x5[17:18] <- x5[17:18]+33
+#left arm + right leg / gyro y-axis
+x6[1:12] <- x6[1:12]+4
+x6[13:16] <- x6[13:16]+20
+x6[17:18] <- x6[17:18]+44
+#left arm + right leg / gyro z-axis
+x7[1:12] <- x7[1:12]+5
+x7[13:16] <- x7[13:16]+25
+x7[17:18] <- x7[17:18]+55
 
-## References
-K. Altun, B. Barshan, and O. Tunçel,
-``Comparative study on classifying human activities with miniature inertial and magnetic sensors,''
-Pattern Recognition, 43(10):3605-3620, October 2010
+#final index vector for the feature selection
+x8 <- sort(c(x1,x2,x3,x4,x5,x6,x7))
+
+#select the rows for the activites a01, a10, a19:
+activSelec <- c(1:408,3673:4080,7345:7752)
+
+#Choise of comparison for the report:
+#Compare a selection of acceleration sensor Features (magnitude and variance) of right leg sensor unit:
+Compare1 <- Feature_train[activSelec,x8[c(43:45,79:81)]] #73:75
+y <- as.factor(unique(rownames(Compare1)))
+
+library(AppliedPredictiveModeling)
+featurePlot(x = Compare1, 
+            y = y, 
+            plot = "box", 
+            ## Pass in options to bwplot() 
+            scales = list(y = list(relation="free"),
+                          x = list(rot = 90)),  
+            layout = c(3,2), 
+           auto.key = list(columns = 3),
+           par.settings=list(box.rectangle=list(lwd=2)),
+           par.strip.text = list(cex=.6, lines=2)
+           )
+```
   
   
+To my astonishment there is far less difference between the activities as I had expected, then the different distributions seem to be remarkably similar. Only when you zoom in heavily one can see some deviations. This made me a bit nervous as when there are no activity specific patterns how an algorithm shall be able to distinguish them? Therefore, let us do another analysis with a different perspective: This time we look at the relation between the different features per activity. To do so we will calculate the correlation matrix per activity with the same feature set as before.
+```{r correlation matrix per activity, echo=TRUE}
+#activity 01 (sitting):
+c1 <- cor(Feature_train[1:408,x8[c(43:45,79:81)]])
+c1
+#activity 10 (walking):
+c2 <- cor(Feature_train[3673:4080,x8[c(43:45,79:81)]])
+c2
+#activity 19 (basketball):
+c3 <- cor(Feature_train[7345:7752,x8[c(43:45,79:81)]])
+c3
+```
+  
+As we can see in these 3 matrices the values are completely different per activity now. To illustrate this let us compare the correlation and the mean of the last column of these correlation matrices (Feature: Magnitude_1, z-axis):
+```{r correlation of the correlation values}
+#Compare the results:
+#Correlation of correclation values for Magnitude z-axis feature between sitting,walking and basketball:
+tibble("Cor.a01/a10"=cor(c1[1:5,6],c2[1:5,6]), "Cor.a01/a19"=cor(c1[1:5,6],c3[1:5,6]), 
+       "Cor. a10/a19"=cor(c2[1:5,6],c3[1:5,6])) %>% knitr::kable()
+
+
+```
+  
+```{r means of the correlation values}
+#the 3 means:
+tibble("mean sitting"=mean(c1[1:5,6]),"mean walking"=mean(c2[1:5,6]), 
+       "mean basketball"=mean(c3[1:5,6])) %>% knitr::kable()
+```
+  
+Even though there is still some correlation between the correlations of basketball and walking (0.704) I think it is safe to say that the relation between the Feature are quite different per activity. So at least this perspective gives some evidence that there are specific patterns per activity with which we "can work with".
+  
+After this deep dive into the data we now tackle the challenge of feature reduction. This is part of every data pre-processing but in this specific case it also has a very practical reason: With a feature set of 1215 features I would hardly be able to calculate any model on my laptop...For the feature reduction I followed the steps as they are described in the caret package[^6]. We start with the "near zero variance" analysis:
+```{r near zero analysis, echo=TRUE}
+#As a first step let's check how much of a reduction we get from "near zero variance" analysis:
+nzv <- nearZeroVar(Feature_train)
+length(nzv)
+#remove these Features from Feature_train
+Feature_train <- Feature_train[,-nzv]
+#new dimension of Feature_train dataset:
+dim(Feature_train)
+```
+  
+There were 16 Features which had a variance close to zero. As we will use a tree-based model and they do not like this type of predictors at all I have removed them from the Feature_train dataset. So, we are down to 1199 Features - still far too many for the models I want to work with. Next step is the analysis of the correlation between the predictors:
+```{r predictor correlation, echo=TRUE}
+#Find highly correlated predictors:
+FeatureCor <-  cor(Feature_train)
+summary(FeatureCor[upper.tri(FeatureCor)])
+length(findCorrelation(FeatureCor, cutoff = 0.9)) # (3 Features when >= 99%)
+```
+  
+When we set the cut off at 0.9 we get 355 Features with an equal or higher correlation. As I need a way to reduce the feature-set it is tempting to remove them from the dataset. But I decided against it. First also in the caret documentation it is written that some models need highly correlated data and second the data analysis above shows differences in the correlations per activity which helps for the "pattern finding". I will keep this in mind and would come back to this decision when I have problems to generate accurate models.  
+Linear Dependencies are another potential source for feature reductions:
+```{r linear dependencies, echo=TRUE}
+#Find linear dependencies:
+findLinearCombos(Feature_train)
+```
+  
+No luck with this one - there are no linear dependencies between the features...  
+As we still have 1199 features, we will go for a PCA decomposition next. While applying PCA I got unsure about one topic: prcomp() is centring the values by default so no need to do it before, but what to do with the "scale." parameter? To show the effect of this parameter on the PCA results we will run both options and show for each version...
+
+*...the development of the cumulative sum in a graph
+*...at which PC the cumulative sum explains 99% of the variance 
+*...the 8 Feature-Loadings which contribute the most to PC1
+
+First will follow the values for the PCA decomposition with scale.=FALSE.
+```{r pca cumsum graph scale FALSE, fig.cap="Cumulative sum of PCA variance for PCA analysis scale.=FALSE", fig.align='center'}
+#------------------------ PCA with sacle.=FALSE  -------------------
+#PCA analysis with center = TRUE (default) but scale. = FALSE
+pca <- prcomp(Feature_train, scale. = FALSE)
+
+#Rename the PCA elements for better understanding and use
+variance <- (pca$sdev)^2
+loading <- pca$rotation 
+rownames(loading) <- colnames(Feature_train)  
+scores <- pca$x
+
+#Shows % of Variance-cumsum explained by PC
+varPercent <- cumsum(variance/sum(variance) * 100)
+barplot(varPercent[1:50], xlab='First 50 PC', ylab='Cumsum Variance %', ylim = c(0,100), names.arg=1:length(varPercent[1:50]), col='black')
+abline(h=99, col='red', cex.lab=0.9)
+text(6,100,"99% of Variance",srt=0,pos=1, col = "red")
+```
+  
+  
+```{r PC_99 and TopLoadings scale FALSE, echo=TRUE}
+#Find # of PC which explain more dann 99% of Variance
+PC_99 <- match("TRUE",cumsum(variance/sum(variance))>=0.99)-1
+PC_99
+
+#Show top loadings in PC1:
+TopLoadings <- round(loading, 2)[,1:10]
+Selection <- head(sort(abs(TopLoadings[,1]),decreasing = TRUE),8)
+Selection
+```
+  
+Now the same for the PCA decomposition with scale.=TRUE:
+```{r pca cumsum graph scale TRUE, fig.cap="Cumulative sum of PCA variance for PCA analysis scale.=TRUE", fig.align='center'}
+#-----------------------------------------------PCA with scale.=TRUE to compare---------------------------
+#PCA with scale.=TRUE
+pca1 <- prcomp(Feature_train, scale. = TRUE)
+
+#Rename the PCA elements for better understanding and use
+variance1 <- (pca1$sdev)^2
+loading1 <- pca1$rotation 
+rownames(loading1) <- colnames(Feature_train)  
+scores1 <- pca1$x
+
+#Shows % of Variance-cumsum explained by PC
+varPercent1 <- cumsum(variance1/sum(variance1) * 100)
+barplot(varPercent1[1:700], xlab='First 700 PC', ylab='Cumsum Variance %', ylim = c(0,100),
+        names.arg=1:length(varPercent1[1:700]), col='gray')
+abline(h=99, col='red')
+text(90,100,"99% of Variance",srt=0,pos=1, col = "red")
+```
+  
+  
+```{r PC_99 and TopLoadings scale TRUE, echo=TRUE}
+#Find # of PC which explain more dann 99% of Variance
+PC_991 <- match("TRUE",cumsum(variance1/sum(variance1))>=0.99)-1
+PC_991
+
+#Show top loadings in PC1:
+TopLoadings1 <- round(loading1, 2)[,1:10]
+Selection1 <- head(sort(abs(TopLoadings1[,1]),decreasing = TRUE),8)
+Selection1
+```
+  
+The two PCA decompositions lead to vastly different results. This mainly because of the Magnitude values of the DFT calculation, as they are in a higher scale then most of the other predictors. As Steven M. Holland explains in his PCA tutorial[^7] if "scale.=FALSE" is set then the whole decomposition will be based on the variance-covariance matrix and higher values will "dominate" the results. In contrast when "scale.=TRUE" PCA is based on a correlation matrix and higher scaled values do not influence the results. This fact gets proven when we look at the top 8 features of PC1. While on the PCA with "scale.=FALSE" this top 8 list is completely dominated by the Magnitude features the top 8 feature list for PCA "scale.=TRUE" has a broader variety (but includes some "Magnitude-Features" too).  
+Now, which option to choose? My initial thought was to set scale.=TRUE as the Magnitude values - especially for DC1 values - are really "out of scale" compared to the others. But then I would have to take 676 PC (features) into my model if I wanted to have the same level of 99% of variance explained (or 264 for variance >=90%). So, again the practical reasons dominated and I decided to go with the version where I set the parameter on "scale.=FALSE", as there I have only to consider 41 Features. A bit of a reassurance for this decision I got from the study of Altun/Barshan/Tuncel, as they mentioned 30 PC they considered for their models - in a PCA with scale.=TRUE this would be a selection which explains only around 60% of the variance, so I assume they set scale. on "FALSE" too. Nevertheless, we will handle it as with the "highly correlated features" above: When we do not get appropriate results, we will come back to this decision.  
+To get a feeling for the results of the PCA calculation (now all to follow with "scale.=FALSE") let's have a quick look at two graphs. The first graph is a biplot which shows the distribution of the "sample scores" (activities) and the Feature loadings of the top 8 contributors of the PC1 for the first two PCs:
+
+```{r PC1/PC2 biplot,  fig.cap="Biplot for PC1 and PC2 (Loading values: Top 8 contributors for PC1)"}
+#-----------------------------------------Some visualitsations around PCA (scale.=FALSE)-------------------------
+#do a scatter plot with the activities and show the loadings of the top 8 "influencer" of PC1
+plot(scores[, 1], scores[, 2], xlab="PC 1", ylab="PC 2", 
+     type="n", xlim=c(min(scores[, 1:2]), max(scores[, 1:2])), 
+     ylim=c(-3000, 3000), cex.lab=0.9)
+points(scores[, 1],scores[, 2], cex=.9, pch=20, col="grey65") # col=1:length(unique(rownames(scores[activSelec,]))))
+scale <- 8000
+arrows(0, 0, loading[names(Selection), 1]*scale, loading[names(Selection), 2]*scale, length=0.1, angle=20, col='red')
+labelScale <- 1 
+text(loading[names(Selection), 1]*scale*labelScale, loading[names(Selection), 2]*scale* labelScale, 
+     rownames(loading[names(Selection),]), col='red', cex=0.6)
+```
+  
+The second graph zooms into the sample scores and shows the distribution of the three activities we used for our data analysis so far (sitting, walking, basketball):
+```{r activities in relation to PC1 and PC2, fig.cap="Distribution of a01, a10, a19 in realtion to PC1 and PC2", fig.align='center'}
+#Plot the activities in relation to PC1 and PC2
+data.frame(scores[activSelec,1:2], Activity=rownames(Feature_train[activSelec,])) %>% 
+  ggplot(aes(PC1,PC2, fill = Activity))+
+  geom_point(cex=2, pch=21) +
+  scale_fill_manual(values=c("blue2", "red2", "forestgreen")) +
+  coord_fixed(ratio = 1)
+
+rm(x,x1,x2,x3,x4,x5,x6,x7,x8,activSelec, FeatureCor, pca1, PC_991,loading1, variance1, scores1, Selection1,
+   TopLoadings1,c1,c2,c3)
+```
+  
+As we can see a01 (sitting) is clear distinguishable from the other two, but also a10 (walking) and a19 (basketball) have their own specific patterns. Therefore, hope is justified that also with the chosen option for the scale.-parameter we will have a good chance to distinguish the different activities from one another. The next chapters will deliver us the final answer.
+  
+### Train the models
+Before we start a short word about the content of this chapter: In the script I structured the code in a way that there are all actions needed per model in one block - from training the model to measuring the accuracy after applying the algorithm against the test dataset. But to get a clear(er) structure in this report we will not discuss or disclose the achieved accuracy in this chapter but in the upcoming "Analyse and discuss the results" chapter.
+As a starting point for the model training, I created two new tibbles: pca_train and pca_test. For pca_train I took the scores-matrix (pca$x) and selected the first 41 columns (PC1 to PC41), added a further column named "Activity" with the corresponding activities per row and finally changed this new column to class "factor". For the first 5 rows/columns this new tibble looks like following:
+```{r show pca_train}
+#pca_train into tibbles incl. Acitivites as factor
+train_labels <- rownames(Feature_train)
+pca_train <- scores[,1:PC_99]
+pca_train <- pca_train %>% as_tibble() %>% cbind(train_labels,.) %>% rename(Activity = train_labels)
+pca_train$Activity <- factor(pca_train$Activity)
+pca_train[1:5,1:5]
+```
+  
+And as we can see the class of "Activity" is "factor":
+```{r class of activity, echo=TRUE}
+class(pca_train[,"Activity"])
+```
+  
+Next, we generate pca_test. We get this dataset by multiplying the vector of Feature_test column means with the loading/rotation matrix of the pca decomposition of Feature_train[^8] - not not to forget to subtract the "near zero variance" features first...:
+```{r build pca_train, echo=TRUE}
+Feature_test <- Feature_test[,-nzv] #so that we have again the same Feature-Set as in train set
+test_labels <- rownames(Feature_test)
+pca_test <- sweep(Feature_test, 2, colMeans(Feature_test)) %*% loading
+```
+  
+As we now have pca_test we also change this matrix into a tibble with the exact same steps as explained above.  
+```{r build pca_test tibble}
+#Transform pca_test matrix into tibble incl. activity column
+pca_test <- pca_test[,1:PC_99]
+pca_test <- pca_test %>% as_tibble() %>% cbind(test_labels,.) %>% rename(Activity = test_labels)
+pca_test$Activity <- factor(pca_test$Activity)
+```
+
+The last step before we start model training is to decide about the "fitControl" parameters. As I had again to consider the existing compute power, I was thinking about using a k-fold cross validation with k=10 or a repeated k-fold cross validation with k=5 and 2 repetitions. At the end I decided for the later - to be honest, without any smart reasoning behind. In the "Machine Learning" module of this HarvardX course we learned that k=5 is ok and adding a second iteration just sounded reasonable to me...:
+```{r shwo fitControl, echo=TRUE}
+#k-Fold CrossValidation with 5 folds and 2 repetitions:
+fitControl <- trainControl(
+  method = "repeatedcv",
+  number = 5,
+  repeats = 2,
+  verboseIter = FALSE) #TRUE in the code script
+```
+  
+Now we are at the point to choose the models. After a certain back and forth I decided for the following set of models:
+
+* Penalized Multinomial Regression
+* k-Nearest Neighbours
+* naive Bayes
+* Support Vector Machines (SVM)
+* Gradient Boosting (linear)
+* Gradient Boosting (tree)
+
+Why those? I wanted to use different models as Altun/Barshan/Tuncel used for their study - exceptions are k-Nearest Neighbours and SVM, as I then have something to compare my results with. Another reason was that I only wanted to use models provided by the caret package. Even so I wanted to have a mix from models I knew from the HarvardX courses and models I have never seen before. The ones I have never seen before are Penalized Multinomial Regression, SVM and the two Gradient Boosting models. With the exception of SVM (this one I took in because of the Altun/Barshan/Tuncel study), I have chosen them because of a book I started to read[^9]. The book itself is about deep learning but it also includes a chapter about what they call "shallow learning". There "logistic Regression" is named as default choice and a good starting point to set a benchmark for the "rest". But to apply this method in a multiclass challenge means either to apply the "one-vs-rest" scheme or use a regression method which is adapted to multiclass challenges. After checking caret documentation I found the "Penalized Multinomial Regression" as my answer to the question. So, I went for this. And "Gradient Boosting" Methods were praised as the most successful ones in the Kaggle competitions - so it was clear that I wanted them in my set of models...  
+Concerning the different tuning parameters I also had to find some compromises between the existing compute power and an optimally tuned model. So, what I did is to first let run every model with its default settings with a k-fold Cross Validation with k=10. Then I sorted the achieved results (best to worst) and looked at the influence of each parameter constellation. Then I fixed all parameters which did not change in the top 10 results at this value for my model-trainings. Even so I deleted values which did not seem to have a lot of influence from the list of values the remaining variable parameters shall consider. I cannot demonstrate this process in this report or my script anymore, as this would take far too much time to always load this again. What the set of parameters per model are we will now see directly in the outputs of the training process:
+
+```{r Penalized Multinomial Regression, include=FALSE}
+#----------------------- Penalized Multinomial Regression -------------------------------------------
+set.seed(1978)
+
+print("Penalized Multinomial Regression") #just for the PDF-eport
+Fit_multi <- train(Activity ~ ., data = pca_train, 
+                 method = "multinom", 
+                 trControl = fitControl,
+                 tuneGrid = data.frame(decay = c(0,0.0001)))
+# Fit_multi - it shwoed me always the verbosIter report in the report so I show for this model
+# Fit_multi in a separte chunk so that I can set the parameter include=FALSE for this chunk
+
+predictions <- predict(Fit_multi, pca_test)
+CM_multi <- confusionMatrix(predictions, pca_test$Activity)
+CM_multi_Acc <- CM_multi$overall["Accuracy"]
+```
+  
+```{r}
+Fit_multi
+```
+  
+```{r k-Nearest Neighbour}
+#-----------------------k-Nearest Neighbours--------------------------------------------------
+set.seed(1978)
+
+print("****************************************") #just for the PDF-eport
+Fit_knn <- train(Activity ~ ., data = pca_train, 
+              method = "knn", 
+              trControl = fitControl,
+              tuneGrid = data.frame(k = c(5,7,9,11,15,20)))
+Fit_knn
+
+predictions <- predict(Fit_knn, pca_test)
+CM_knn <- confusionMatrix(predictions, pca_test$Activity)
+CM_knn_Acc <- CM_knn$overall["Accuracy"]
+```
+  
+```{r naive Bayes}
+#-----------------------naive Bayes -- lots of warnings because auf small values ----------------
+set.seed(1978)
+
+print("****************************************") #just for the PDF-eport
+Fit_nBayes <- train(Activity ~ ., data = pca_train, 
+                 method = "nb", 
+                 trControl = fitControl,
+                 tuneGrid = data.frame(fL = 0, usekernel = TRUE, adjust = 1))
+Fit_nBayes
+
+predictions <- predict(Fit_nBayes, pca_test)
+CM_nBayes <- confusionMatrix(predictions, pca_test$Activity)
+CM_nBayes_Acc <- CM_nBayes$overall["Accuracy"]
+```
+  
+```{r Support Vector Machines}
+#-----------------------Support Vector Machines----------------------------------------------------
+set.seed(1978)
+
+print("****************************************") #just for the PDF-eport
+Fit_svm <- train(Activity ~ ., data = pca_train, 
+                 method = "svmLinear2",
+                 trControl = fitControl,
+                tuneGrid = data.frame(cost = c(0.5,1)))
+Fit_svm
+
+predictions <- predict(Fit_svm, pca_test)
+CM_svm <- confusionMatrix(predictions, pca_test$Activity)
+CM_svm_Acc <- CM_svm$overall["Accuracy"]
+```
+  
+```{r Gradient Boosting (linear)}
+#-----------------------Gradient Boosting linear ----------------------------------------------------
+set.seed(1978)
+
+print("****************************************") #just for the PDF-eport
+Fit_gb <- train(Activity ~ ., data = pca_train, 
+                    method = "xgbLinear",
+                    trControl = fitControl,
+                    tuneGrid = data.frame(nrounds= 150, lambda=c(0,0.1), 
+                                          alpha=0, eta=c(0.3,0.4)))
+Fit_gb
+
+predictions <- predict(Fit_gb, pca_test)
+CM_gb <- confusionMatrix(predictions, pca_test$Activity)
+CM_gb_Acc <- CM_gb$overall["Accuracy"]
+```
+  
+```{r Gradient Boosting (tree)}
+#-----------------------Gradient Boosting Tree ----------------------------------------------------
+set.seed(1978)
+
+print("****************************************") #just for the PDF-eport
+len=3
+gbtGrid <-  expand.grid(max_depth = seq(2, len),
+                         nrounds = floor((2:len) * 50),
+                         eta = .3,
+                         gamma = 0,
+                         colsample_bytree = c(.6, .8),
+                         min_child_weight = c(1),
+                         subsample = seq(.5, .75, length = len-1))
+
+Fit_gbt <- train(Activity ~ ., data = pca_train, 
+                method = "xgbTree",
+                trControl = fitControl,
+                tuneGrid = gbtGrid)
+Fit_gbt
+
+predictions <- predict(Fit_gbt, pca_test)
+CM_gbt <- confusionMatrix(predictions, pca_test$Activity)
+CM_gbt_Acc <- CM_gbt$overall["Accuracy"]
+```
+  
+Now all models are trained and at least the training results look not too bad already. Let us see what results we achieved with the test dataset in the next chapter.
+  
+## Analyse and discuss the results
+  
+Here the table of the results after applying the trained models against pca_test:
+```{r show final results}
+#----------------------Compare all Accuracies----------------------------------
+results <- tibble(method= c("Penalized Multinomial Regression", "k-Nearest Neighbours", "Naive Bayes",
+                           "Support Vector Machines", "eXtreme Gradient Boosting (linear)", 
+                           "eXtreme Gradient Boosting (Tree)"),
+                                 Accuracy = c(CM_multi_Acc, CM_knn_Acc,
+                                              CM_nBayes_Acc, CM_svm_Acc,
+                                              CM_gb_Acc, CM_gbt_Acc))
+
+results <- results[order(results$method),]
+results <- results[order(results$Accuracy, decreasing = TRUE),]
+
+results %>% knitr::kable()
+```
+  
+As we can see we have 4 models which outdo the set goal of 99% accuracy. Therefore, I do not see the necessity during this project to go back on some of the decisions we have taken so far. Even so I think the results are good enough to be applied in practice. But to discuss this further let us have a closer look at the predictions of the different models:
+  
+```{r deeper look on final results}
+#Deeper look on final results by comparing the prediction/reference-matricies of the 4 top performing models:
+options(width = 200)
+print("Gradient Boosting (tree)")
+CM_gbt$table
+print("Support Vector Machine")
+CM_svm$table
+print("Gradient Boosting (linear)")
+CM_gb$table
+print("k-Nearest Neighbour")
+CM_knn$table
+print("naive Bayes")
+CM_nBayes$table
+print("Penalized Multinomial Regression")
+CM_multi$table
+```
+  
+Looking at these matrices we see that the prediction of a08 (moving around in an elevator) was the hardest, it got especially often confused with a07 (standing in an elevator still). Interestingly to predict a07 seems to be easier. This is probably since on a small space like an elevator it was hard to permanently be in motion for 5 minutes (recording time). Therefore, chances are high, that there are some samples labelled with a08 which have in fact more in common with a07, as for a (split) second the subject stood still. 
+It also shows that "Penalized Multinomial Regression" and "naive Bayes" are probably not the best algorithms for this specific challenge. We also observed this during the training with naive Bayes as it generates quite a lot of warnings with the message "XX: In FUN(X[[i]], ...) : Numerical 0 probability for all classes with observation xx". According to a post of "topepo" in a chat forum on GitHub[^10] this 0 probability issue comes because naive Bayes is not the best model for challenges with a lot of predictors. Even though we still have a not too bad accuracy of over 97% a set of 41 predictors seems already to "scratch" at these limits...
+Next let us have a look at the overall statistics of the 4 top performing models:
+```{r confusion matrix overall statistics}
+options(width = 100)
+#Overall statistics of the 4 top models:
+print("Gradient Boosting (tree)")
+CM_gbt$overall
+print("Support Vector Machine")
+CM_svm$overall
+print("Gradient Boosting (linear)")
+CM_gb$overall
+print("k-Nearest Neighbor")
+CM_knn$overall
+```
+  
+Again, the good results get confirmed, no (negative) surprises with Kappa-values, nor with the confidence interval or the p-values. We could also have a look at the sensitivity and specificity rates now. But as we have seen in the prediction/reference-matrices there were only few wrong predictions and only a08 will have a bit a lower sensitivity (it is at 0.9583333) because of some "false negative" values. For this reason, we skip this step.   
+But there was one thing which bothered me about the results: "k-Nearest Neighbour" and "Gradient Boosting (linear)" deliverd the exact same result. This obviously because they had the same amount of wrong predictions:
+```{r count amount of wrong predictions, echo=TRUE}
+#Same amount of wrong predictions for knn and Gradient Boosting (linear):
+sum(CM_gb$table[upper.tri(CM_gb$table)],CM_gb$table[lower.tri(CM_gb$table)])
+sum(CM_gb$table[upper.tri(CM_knn$table)],CM_knn$table[lower.tri(CM_knn$table)])
+```
+  
+First I thought I made a mistake with the variables or so. But when we look at the two prediction/reference-matrices again we see that they look different, so this was "just" a coincident. As the top 4 models are so close together chances are quite high that the same amount of wrong predictions may occur, even though based on different "ways to get there". 
+Now I want to come back to my statement "good enough to be applied in practice": We see that the predictions are really very accurate - even more when we would exclude this very specific use case of "walking in an elevator". Even so all other parameters which could give us hints concerning some potential issues are not striking at all. So yes, I think with these results we could really carry on and try to apply them in some real-life use cases.
+To close this chapter let us have a quick look to the results of the Altun/Barshan/Tuncel study:  
+```{r study results, fig.cap="Table of results of Altun/Barshan/Tulcen study", fig.align='center'}
+DataPic= "https://publicdatarfu.blob.core.windows.net/publicdatarfucontainer/StudyResults.PNG"
+download.file(DataPic,'DataPic.png', mode = 'wb')
+knitr::include_graphics("DataPic.png")
+```
+  
+If we compare the results with the p-fold column we see that the results are comparable - at least when we look at their five best performing models. Interesting is that SVM was always in the top 2 for me, even though I played with the different options (and as I remember was always above 99%) - this seemed not to be the case in the their study. Nevertheless, I will not do a further deep dive on this as I do not see "under the hood" of their work and therefore do not know what exactly they have done. 
+  
+## Personal Conclusion
+  
+As this project achieved its goals I am quite happy with the results: The data loading part was a bit of a challenge but the final solution is quite efficient, the pre-processing part was very interesting and even opened up a whole new world to me with topics like Discrete Fourier Transform and complex numbers..., and last but not least the final accuracy scores were on eyes height with the results of the Altun/Barshan/Tulcen study which reassured me that during this whole journey no crucial mistakes did happen. Nevertheless, there are always aspects to improve or dig deeper into, so for me potential future work could be:
+
+* Personal interests: As I have not learned a programming language before this course, I am a newbie in coding. So, I assume an experienced coder would have solved several topics more efficient then me, therefore it would certainly be interesting to have a look at some parts of my code with such an expert. Same applies for some mathematical parts as I did not find an answer on all the questions which popped up.
+* Explore further optimisations: If I not had to deal with the compute (and RAM) limits of my laptop I would once like to work with the PCA version where I set scale.=TRUE to see how far I get with this option. Even so I am fascinated about deep learning but have no practical experience with it yet. To see how such an approach would perform on this type of problem would certainly be interesting too.
+
+
+## Main References
+The main references I used are listed below. But these are just the sources I consulted multiple times throughout the project. Beside those I also  googled several things and therefore read multiple websites, chat forums, Wikipedia pages and so on to solve the different challenges I faced.
+
+* K. Altun, B. Barshan, and O. Tuncel, "Comparative study on classifying human activities with miniature interial and magnetic sensors", Pattern Recognition, 43(10):3605-3620, October 2010
+* Francois Chollet, J.J. Allaire, "Deep Learning with R", 2018, ISBN 9781617295546
+* Steven M. Holland, "PRINCIPAL COMPONENTS ANALYSIS (PCA)", 3rd of December 2019, (https://strata.uga.edu/software/pdf/pcaTutorial.pdf)
+* Rafael A. Irizarry, "Introduction to Data Science, Data Analysis and Prediction Algorithms with R", last update 2020-05-10, (https://rafalab.github.io/dsbook/large-datasets.html)
+* Max Kuhn, "The caret Package", last update 2019-03-27, (http://topepo.github.io/caret)
+  
+
+
 [^1]: https://archive.ics.uci.edu/ml/index.php
 [^2]: https://www.kaggle.com/datasets
 [^3]: https://archive.ics.uci.edu/ml/datasets/Daily+and+Sports+Activities
 [^4]: https://www.researchgate.net/publication/223300172_Comparative_study_on_classifying_human_activities_with_miniature_inertial_and_magnetic_sensors
-
-[^3]: https://strata.uga.edu/software/pdf/pcaTutorial.pdf
-[^4]: http://www2.uaem.mx/r-mirror/web/packages/recommenderlab/recommenderlab.pdf
+[^5]: https://www.udemy.com/course/fourier-transform-mxc/
+[^6]: http://topepo.github.io/caret
+[^7]: https://strata.uga.edu/software/pdf/pcaTutorial.pdf
+[^8]: https://rafalab.github.io/dsbook/large-datasets.html
+[^9]: Deep Learning with R
+[^10]: https://github.com/topepo/caret/issues/339
