@@ -937,9 +937,9 @@ First I thought I made a mistake with the variables or so. But when we look at t
 Now I want to come back to my statement "good enough to be applied in practice": We see that the predictions are really very accurate - even more when we would exclude this very specific use case of "walking in an elevator". Even so all other parameters which could give us hints concerning some potential issues are not striking at all. So yes, I think with these results we could really carry on and try to apply them in some real-life use cases.
 To close this chapter let us have a quick look to the results of the Altun/Barshan/Tuncel study:  
 ```{r study results, fig.cap="Table of results of Altun/Barshan/Tulcen study", fig.align='center'}
-DataPic= "https://publicdatarfu.blob.core.windows.net/publicdatarfucontainer/StudyResults.PNG"
-download.file(DataPic,'DataPic.png', mode = 'wb')
-knitr::include_graphics("DataPic.png")
+StudyResults= "https://publicdatarfu.blob.core.windows.net/publicdatarfucontainer/StudyResults.PNG"
+download.file(StudyResults,'StudyResults.png', mode = 'wb')
+knitr::include_graphics("StudyResults.png")
 ```
   
 If we compare the results with the p-fold column we see that the results are comparable - at least when we look at their five best performing models. Interesting is that SVM was always in the top 2 for me, even though I played with the different options (and as I remember was always above 99%) - this seemed not to be the case in the their study. Nevertheless, I will not do a further deep dive on this as I do not see "under the hood" of their work and therefore do not know what exactly they have done. 
